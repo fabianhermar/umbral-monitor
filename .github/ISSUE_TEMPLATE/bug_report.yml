@@ -1,0 +1,39 @@
+name: "🐛 Bug Report / Reporte de Error"
+description: "Report an unexpected bug or regression in UMBRAL."
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        > **Security Note:** Never include real API tokens, `.dev.vars`, or security exploits here. Use **Security → Report a vulnerability** for security issues.
+  - type: dropdown
+    id: area
+    attributes:
+      label: "Affected Area / Área afectada"
+      options:
+        - "Frontend UI (React / Tailwind)"
+        - "Worker API / Collectors (Cloudflare Worker)"
+        - "D1 Database / Migrations"
+        - "Vercel SDK (sdk/vercel-monitor.ts)"
+        - "Demo Mode (umbral-demo)"
+        - "Documentation"
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: "What happened? / ¿Qué ocurrió?"
+      description: "Clear description of the unexpected behavior."
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: "Steps to Reproduce / Pasos para reproducir"
+      placeholder: |
+        1. Run `pnpm dev:worker`
+        2. Click on ...
+        3. See error ...
+    validations:
+      required: true

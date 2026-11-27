@@ -1,0 +1,19 @@
+name: "✨ Feature Request / Propuesta de Mejora"
+description: "Suggest a new capability or UX improvement for UMBRAL."
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: "Problem or Use Case / Problema o caso de uso"
+      description: "What operational or security need would this solve?"
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: "Proposed Solution / Solución propuesta"
+      description: "How should it work across the UI and/or Cloudflare Worker?"
+    validations:
+      required: true
