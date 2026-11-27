@@ -1,15 +1,21 @@
 # ==============================================================================
 # Variables locales para `wrangler dev` (copia este archivo a `.dev.vars`)
-# En producción configúralas con `wrangler secret put <NOMBRE>`
+# En producción configúralas con `pnpx wrangler secret put <NOMBRE>`
 # ==============================================================================
 
 ENVIRONMENT=development
 
 # Acceso al dashboard:
-# En producción usa Cloudflare Access + tu correo exacto aquí para doble validación:
 DASHBOARD_ADMIN_EMAIL=tu-correo@ejemplo.com
-# Opcional: clave Bearer si quieres probar la API sin Cloudflare Access:
 DASHBOARD_API_KEY=dev-local-key-cambia-esto
+
+# Verificación criptográfica de Cloudflare Access JWT (recomendado en producción):
+CF_ACCESS_TEAM_DOMAIN=
+CF_ACCESS_AUD=
+
+# Lista blanca privada de tus sitios (sobrescribe config/sites.config.ts sin subir dominios a GitHub):
+# SITES_CONFIG_JSON=[{"id":"mi-web","name":"Mi Web","domain":"midominio.com","allowedHosts":["midominio.com","www.midominio.com"],"checkUrl":"https://midominio.com","cloudflareZoneId":"","vercelProjectId":""}]
+SITES_CONFIG_JSON=
 
 # Cloudflare API Token (permisos solo lectura: Zone -> Analytics:Read, Firewall Services:Read)
 CLOUDFLARE_API_TOKEN=
@@ -17,9 +23,8 @@ CLOUDFLARE_API_TOKEN=
 # Vercel Personal Access Token (opcional, para detectar despliegues fallidos en Vercel Free)
 VERCEL_API_TOKEN=
 
-# Secretos HMAC exclusivos por cada uno de tus 5 sitios en config/sites.config.ts
-# Reemplaza los valores con cadenas aleatorias largas (>= 32 caracteres)
-SITE_SECRETS_JSON={"boxode":"cambia-secreto-boxode-min-16-chars","carniceriasnmiguel":"cambia-secreto-carniceria-16-chars","ccut":"cambia-secreto-ccut-min-16-chars","duneui":"cambia-secreto-duneui-min-16-chars","fabianh":"cambia-secreto-fabianh-min-16-chars"}
+# Secretos HMAC exclusivos por cada sitio (debe coincidir con el `id` de cada sitio)
+SITE_SECRETS_JSON={"mi-web-principal":"cambia-este-secreto-largo-1","mi-app":"cambia-este-secreto-largo-2"}
 
 # Alertas en tiempo real (opcional - configura Telegram y/o Discord)
 TELEGRAM_BOT_TOKEN=

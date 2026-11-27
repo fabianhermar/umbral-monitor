@@ -2,13 +2,14 @@
  * ============================================================================
  * UMBRAL — LISTA BLANCA ESTRICTA DE TUS PROPIAS PÁGINAS WEB
  * ============================================================================
- * Este observatorio SOLO monitorea, consulta y acepta telemetría de los
- * 5 dominios declarados explícitamente aquí. No existe ningún endpoint
- * público para añadir sitios externos.
+ * Este observatorio SOLO monitorea, consulta y acepta telemetría de los sitios
+ * configurados por el propietario.
  *
- * Para completar la sincronización con Cloudflare WAF y Vercel Deployments:
- * - cloudflareZoneId: Panel de Cloudflare -> tu dominio -> Overview -> Zone ID
- * - vercelProjectId:  Vercel -> Project Settings -> General -> Project ID
+ * Dos formas de configurar tus sitios:
+ *  1. Privado (recomendado si subes el repo a GitHub): define `SITES_CONFIG_JSON`
+ *     en `.dev.vars` (local) y con `pnpx wrangler secret put SITES_CONFIG_JSON`
+ *     en Cloudflare. Eso sobrescribe esta plantilla sin exponer tus dominios.
+ *  2. Directo en código (si tu repositorio es privado): edita `MY_SITES` aquí.
  */
 
 export interface SiteConfig {
@@ -28,66 +29,27 @@ export interface SiteConfig {
 
 export const MY_SITES: readonly SiteConfig[] = [
   {
-    id: "boxode",
-    name: "Boxode",
-    domain: "boxode.org",
-    allowedHosts: ["boxode.org", "www.boxode.org"],
-    checkUrl: "https://www.boxode.org",
+    id: "mi-web-principal",
+    name: "Web Principal",
+    domain: "ejemplo.com",
+    allowedHosts: ["ejemplo.com", "www.ejemplo.com"],
+    checkUrl: "https://ejemplo.com",
     expectedStatus: [200, 204, 301, 302, 307, 308],
     latencyWarnMs: 2500,
-    cloudflareZoneId: "", // Pega aquí el Zone ID de boxode.org
-    vercelProjectId: "",  // Pega aquí el Project ID de Vercel
+    cloudflareZoneId: "", // Cloudflare -> Overview -> Zone ID
+    vercelProjectId: "",  // Vercel -> Project Settings -> General -> Project ID
     checkSecurityHeaders: true,
     attackAlertThreshold5m: 15,
   },
   {
-    id: "carniceriasnmiguel",
-    name: "Carnicería San Miguel",
-    domain: "carniceriasnmiguel.com",
-    allowedHosts: ["carniceriasnmiguel.com", "www.carniceriasnmiguel.com"],
-    checkUrl: "https://www.carniceriasnmiguel.com",
+    id: "mi-app",
+    name: "App / Portal",
+    domain: "app.ejemplo.com",
+    allowedHosts: ["app.ejemplo.com"],
+    checkUrl: "https://app.ejemplo.com",
     expectedStatus: [200, 204, 301, 302, 307, 308],
     latencyWarnMs: 2500,
-    cloudflareZoneId: "", // Pega aquí el Zone ID de carniceriasnmiguel.com
-    vercelProjectId: "",
-    checkSecurityHeaders: true,
-    attackAlertThreshold5m: 15,
-  },
-  {
-    id: "ccut",
-    name: "CCUT",
-    domain: "ccut.app",
-    allowedHosts: ["ccut.app", "www.ccut.app"],
-    checkUrl: "https://ccut.app",
-    expectedStatus: [200, 204, 301, 302, 307, 308],
-    latencyWarnMs: 2500,
-    cloudflareZoneId: "", // Pega aquí el Zone ID de ccut.app
-    vercelProjectId: "",
-    checkSecurityHeaders: true,
-    attackAlertThreshold5m: 15,
-  },
-  {
-    id: "duneui",
-    name: "Dune UI",
-    domain: "duneui.dev",
-    allowedHosts: ["duneui.dev", "www.duneui.dev"],
-    checkUrl: "https://www.duneui.dev",
-    expectedStatus: [200, 204, 301, 302, 307, 308],
-    latencyWarnMs: 2500,
-    cloudflareZoneId: "", // Pega aquí el Zone ID de duneui.dev
-    vercelProjectId: "",
-    checkSecurityHeaders: true,
-    attackAlertThreshold5m: 15,
-  },
-  {
-    id: "fabianh",
-    name: "FabianH",
-    domain: "fabianh.me",
-    allowedHosts: ["fabianh.me", "www.fabianh.me"],
-    checkUrl: "https://fabianh.me",
-    expectedStatus: [200, 204, 301, 302, 307, 308],
-    latencyWarnMs: 2500,
-    cloudflareZoneId: "", // Pega aquí el Zone ID de fabianh.me
+    cloudflareZoneId: "",
     vercelProjectId: "",
     checkSecurityHeaders: true,
     attackAlertThreshold5m: 15,
