@@ -26,7 +26,7 @@ interface CfJwtPayload {
 
 let cachedKeys: { issuer: string; expiresAt: number; keys: JwkKey[] } | null = null;
 
-function base64UrlToUint8Array(base64Url: string): Uint8Array {
+function base64UrlToUint8Array(base64Url: string): Uint8Array<ArrayBuffer> {
   const padded = base64Url.replace(/-/g, "+").replace(/_/g, "/");
   const padLen = (4 - (padded.length % 4)) % 4;
   const binary = atob(padded + "=".repeat(padLen));
