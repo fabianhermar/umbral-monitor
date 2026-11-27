@@ -1,4 +1,17 @@
 /**
+ * @license MIT
+ * @project UMBRAL — Private Perimeter & Incident Observatory
+ * @module  tests/security/static-code-audit.test.ts
+ *
+ * Copyright (c) 2026 UMBRAL Contributors. All rights reserved.
+ *
+ * This source code is licensed under the MIT License found in the
+ * LICENSE file in the root directory of this source tree.
+ *
+ * SPDX-License-Identifier: MIT
+ */
+
+/**
  * ============================================================================
  * Suite de Seguridad 04 — Auditoría Estática de Código (SAST Interno)
  * ============================================================================
@@ -107,5 +120,22 @@ describe("Auditoría Estática de Seguridad del Repositorio (SAST)", () => {
     expect(hasRoute).toBe(true);
     expect(headersFile).toContain("Content-Security-Policy:");
     expect(headersFile).toContain("Strict-Transport-Security:");
+  });
+
+  it("verifica que todos los archivos fuente incluyan el encabezado oficial SPDX-License-Identifier: MIT", () => {
+    const sourceFiles = [
+      ...walkFiles(path.join(ROOT, "worker"), [".ts"]),
+      ...walkFiles(path.join(ROOT, "src"), [".ts", ".tsx"]),
+      ...walkFiles(path.join(ROOT, "config"), [".ts"]),
+      ...walkFiles(path.join(ROOT, "sdk"), [".ts"]),
+    ];
+
+    for (const file of sourceFiles) {
+      const content = fs.readFileSync(file, "utf8");
+      expect(
+        content.includes("SPDX-License-Identifier: MIT"),
+        `Falta encabezado de licencia SPDX en ${path.relative(ROOT, file)}`
+      ).toBe(true);
+    }
   });
 });

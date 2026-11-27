@@ -1,4 +1,17 @@
 /**
+ * @license MIT
+ * @project UMBRAL — Private Perimeter & Incident Observatory
+ * @module  tests/security/validators-and-ssrf.test.ts
+ *
+ * Copyright (c) 2026 UMBRAL Contributors. All rights reserved.
+ *
+ * This source code is licensed under the MIT License found in the
+ * LICENSE file in the root directory of this source tree.
+ *
+ * SPDX-License-Identifier: MIT
+ */
+
+/**
  * ============================================================================
  * Suite de Seguridad 02 — Sanitización, Anti-Prototype Pollution y Anti-SSRF
  * ============================================================================
