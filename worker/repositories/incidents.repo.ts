@@ -137,6 +137,40 @@ export async function updateIncidentStatusById(
   return (res.meta?.changes ?? 0) > 0;
 }
 
+export async function bulkUpdateIncidentStatus(
+  db: D1Database,
+  ids: string[],
+  status: IncidentStatus,
+  resolvedAt: string | null
+): Promise<number> {
+  if (ids.length === 0) return 0;
+  const safeIds = ids.slice(0, 100);
+  const placeholders = safeIds.map(() => "?").join(", ");
+  const res = await db
+    .prepare(`UPDATE incidents SET status = ?, resolved_at = ? WHERE id IN (${placeholders})`)
+    .bind(status, resolvedAt, ...safeIds)
+    .run();
+  return res.meta?.changes ?? 0;
+}
+
+export async function getAverageMttrMinutes30d(db: D1Database, sinceIso: string): Promise<number | null> {
+  const row = await db
+    .prepare(
+      `SELECT AVG((julianday(resolved_at) - julianday(started_at)) * 1440.0) AS avg_mins
+       FROM incidents
+       WHERE status = 'resolved'
+         AND resolved_at IS NOT NULL
+         AND started_at >= ?`
+    )
+    .bind(sinceIso)
+    .first<{ avg_mins: number | null }>();
+
+  if (row?.avg_mins === null || row?.avg_mins === undefined || !Number.isFinite(row.avg_mins)) {
+    return null;
+  }
+  return Math.max(1, Math.round(row.avg_mins));
+}
+
 export async function countActiveIncidentsGrouped(db: D1Database) {
   const res = await db
     .prepare(

@@ -9,12 +9,15 @@
 import { Hono } from "hono";
 import { VALID_STATUSES } from "../constants/security";
 import {
+  addDemoNote,
   buildDemoOverview,
   buildDemoUptimeSeries,
   DEMO_SITES,
   getDemoIncidents,
+  getDemoNotes,
   getDemoSecurityEvents,
   resetDemoState,
+  setDemoSiteMute,
   simulateDemoIncident,
   updateDemoIncidentStatus,
 } from "../demo/demo.data";
@@ -62,6 +65,94 @@ demoRoutes.patch("/incidents/:id", async (c) => {
   }
 
   return c.json({ ok: true, id, status: updated.status, resolved_at: updated.resolved_at });
+});
+
+demoRoutes.post("/incidents/bulk-status", async (c) => {
+  const body = (await c.req.json().catch(() => null)) as {
+    ids?: string[];
+    status?: IncidentStatus;
+  } | null;
+  if (!body?.status || !VALID_STATUSES.has(body.status) || !Array.isArray(body.ids)) {
+    return c.json({ error: "Parámetros inválidos." }, 400);
+  }
+  let updatedCount = 0;
+  for (const id of body.ids) {
+    if (updateDemoIncidentStatus(id, body.status)) updatedCount += 1;
+  }
+  return c.json({ ok: true, updatedCount });
+});
+
+demoRoutes.get("/incidents/:id/notes", (c) => {
+  return c.json({ notes: getDemoNotes(c.req.param("id")) });
+});
+
+demoRoutes.post("/incidents/:id/notes", async (c) => {
+  const body = (await c.req.json().catch(() => null)) as { content?: string } | null;
+  const content = body?.content?.trim() ?? "";
+  if (!content) return c.json({ error: "Contenido vacío." }, 400);
+  const note = addDemoNote(c.req.param("id"), content);
+  return c.json({ ok: true, note }, 201);
+});
+
+demoRoutes.post("/sites/:siteId/mute", async (c) => {
+  const siteId = c.req.param("siteId");
+  const body = (await c.req.json().catch(() => null)) as { minutes?: number } | null;
+  const mutedUntil = setDemoSiteMute(siteId, Number(body?.minutes ?? 0));
+  return c.json({ ok: true, siteId, mutedUntil });
+});
+
+demoRoutes.post("/sites/:siteId/inspect", (c) => {
+  const siteId = c.req.param("siteId");
+  const site = DEMO_SITES.find((s) => s.id === siteId);
+  if (!site) return c.json({ error: "Sitio demo no encontrado." }, 404);
+
+  const isStore = site.id === "nova-store";
+  return c.json({
+    diagnostics: {
+      siteId: site.id,
+      domain: site.domain,
+      checkedAt: new Date().toISOString(),
+      httpToHttpsRedirect: {
+        enforced: true,
+        statusCode: 308,
+        location: `https://${site.domain}/`,
+      },
+      httpsProbe: {
+        ok: true,
+        finalUrl: `https://${site.domain}/`,
+        statusCode: 200,
+        latencyMs: site.baseLatencyMs,
+        server: "cloudflare",
+        cfRay: "8e9b4c12f901dfw-DFW",
+      },
+      headersAudit: {
+        score: isStore ? 71 : 100,
+        headers: [
+          { name: "strict-transport-security", present: true, valuePreview: "max-age=31536000; includeSubDomains" },
+          { name: "content-security-policy", present: !isStore, valuePreview: isStore ? null : "default-src 'self'" },
+          { name: "x-content-type-options", present: true, valuePreview: "nosniff" },
+          { name: "x-frame-options", present: true, valuePreview: "DENY" },
+          { name: "referrer-policy", present: true, valuePreview: "strict-origin-when-cross-origin" },
+          { name: "permissions-policy", present: !isStore, valuePreview: isStore ? null : "camera=(), microphone=()" },
+          { name: "cross-origin-opener-policy", present: true, valuePreview: "same-origin" },
+        ],
+      },
+      dns: {
+        aRecords: ["104.21.48.10", "172.67.182.44"],
+        aaaaRecords: ["2606:4700:3031::6815:300a"],
+        caaRecords: ['0 issue "letsencrypt.org"', '0 issue "pki.goog"'],
+        hasSpfOrDmarc: true,
+      },
+      hasSecurityTxt: !isStore,
+    },
+  });
+});
+
+demoRoutes.post("/alerts/test", (c) => {
+  return c.json({
+    ok: true,
+    delivery: { telegram: "sent", discord: "sent" },
+  });
 });
 
 demoRoutes.get("/security", (c) => {

@@ -2,8 +2,13 @@
  * ============================================================================
  * Rutas Privadas del Dashboard (`/api/dashboard/*`)
  * ============================================================================
- * Controladores HTTP delgados: validan parámetros de entrada, delegan toda la
- * lógica a servicios/repositorios y devuelven respuestas JSON limpias.
+ * Incluye:
+ *  - Resumen general (`GET /overview`) con KPIs, MTTR y presupuesto SLA.
+ *  - Gestión de incidencias, actualización en bloque (`POST /incidents/bulk-status`)
+ *    y bitácora de notas post-mortem (`GET/POST /incidents/:id/notes`).
+ *  - Modo Mantenimiento / Silenciado por sitio (`POST /sites/:siteId/mute`).
+ *  - Diagnóstico profundo en vivo DNS/SSL/HTTP (`POST /sites/:siteId/inspect`).
+ *  - Prueba inmediata de alertas Telegram/Discord (`POST /alerts/test`).
  */
 
 import { Hono } from "hono";
@@ -12,17 +17,21 @@ import { runUptimeChecks } from "../collectors/uptime.collector";
 import { syncVercelDeployments } from "../collectors/vercel.collector";
 import { SECURITY_LIMITS, VALID_STATUSES } from "../constants/security";
 import { requireDashboardAuth } from "../middlewares/auth";
-import { checkManualScanCooldown } from "../middlewares/rate-limit";
+import { checkManualScanCooldown, checkRateLimit } from "../middlewares/rate-limit";
 import {
+  bulkUpdateIncidentStatus,
   listIncidentsFiltered,
   updateIncidentStatusById,
 } from "../repositories/incidents.repo";
+import { insertIncidentNote, listIncidentNotes } from "../repositories/notes.repo";
 import { getSecurityBreakdown24h } from "../repositories/security-events.repo";
-import { listUptimeSeries } from "../repositories/uptime.repo";
+import { listUptimeSeries, setSiteMutedUntil } from "../repositories/uptime.repo";
 import { getAllowedSite } from "../security/allowlist";
+import { sendTestAlertNotification } from "../services/alerts.service";
 import { buildDashboardOverview } from "../services/dashboard.service";
+import { runSiteDeepDiagnostics } from "../services/diagnostics.service";
 import type { AuthContext, Env, IncidentStatus } from "../types";
-import { sanitizeMetadata } from "../validators/ingest.validator";
+import { cleanText, sanitizeMetadata } from "../validators/ingest.validator";
 
 export const dashboardRoutes = new Hono<{
   Bindings: Env;
@@ -92,6 +101,111 @@ dashboardRoutes.patch("/incidents/:id", async (c) => {
   }
 
   return c.json({ ok: true, id, status: body.status, resolved_at: resolvedAt });
+});
+
+dashboardRoutes.post("/incidents/bulk-status", async (c) => {
+  const body = (await c.req.json().catch(() => null)) as {
+    ids?: unknown;
+    status?: IncidentStatus;
+  } | null;
+
+  if (!body?.status || !VALID_STATUSES.has(body.status) || !Array.isArray(body.ids)) {
+    return c.json({ error: "Proporciona un arreglo `ids` y un `status` válido." }, 400);
+  }
+
+  const validIds = body.ids
+    .filter((id): id is string => typeof id === "string" && /^inc_[a-zA-Z0-9_-]{4,40}$/.test(id))
+    .slice(0, 100);
+
+  if (validIds.length === 0) {
+    return c.json({ error: "No se recibieron IDs de incidencia válidos." }, 400);
+  }
+
+  const resolvedAt = body.status === "resolved" ? new Date().toISOString() : null;
+  const updatedCount = await bulkUpdateIncidentStatus(c.env.DB, validIds, body.status, resolvedAt);
+  return c.json({ ok: true, updatedCount });
+});
+
+dashboardRoutes.get("/incidents/:id/notes", async (c) => {
+  const id = c.req.param("id").trim();
+  if (!/^inc_[a-zA-Z0-9_-]{4,40}$/.test(id)) {
+    return c.json({ error: "Identificador de incidencia inválido." }, 400);
+  }
+
+  const notes = await listIncidentNotes(c.env.DB, id);
+  return c.json({ notes });
+});
+
+dashboardRoutes.post("/incidents/:id/notes", async (c) => {
+  const id = c.req.param("id").trim();
+  if (!/^inc_[a-zA-Z0-9_-]{4,40}$/.test(id)) {
+    return c.json({ error: "Identificador de incidencia inválido." }, 400);
+  }
+
+  const body = (await c.req.json().catch(() => null)) as { content?: unknown } | null;
+  const content = cleanText(body?.content, 800, true);
+  if (!content) {
+    return c.json({ error: "El contenido de la nota no puede estar vacío." }, 400);
+  }
+
+  const auth = c.get("auth");
+  const note = await insertIncidentNote(c.env.DB, {
+    id: `note_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`,
+    incidentId: id,
+    author: auth.user,
+    content,
+    createdAt: new Date().toISOString(),
+  });
+
+  return c.json({ ok: true, note }, 201);
+});
+
+dashboardRoutes.post("/sites/:siteId/mute", async (c) => {
+  const siteId = c.req.param("siteId").trim();
+  const site = getAllowedSite(c.env, siteId);
+  if (!site) {
+    return c.json({ error: "Sitio no permitido en lista blanca." }, 404);
+  }
+
+  const body = (await c.req.json().catch(() => null)) as { minutes?: number } | null;
+  const minutes = Number(body?.minutes ?? 0);
+  if (!Number.isFinite(minutes) || minutes < 0 || minutes > 1440) {
+    return c.json({ error: "Duración inválida (0 a 1440 minutos)." }, 400);
+  }
+
+  const mutedUntil =
+    minutes > 0 ? new Date(Date.now() + minutes * 60_000).toISOString() : null;
+  await setSiteMutedUntil(c.env.DB, site.id, mutedUntil);
+
+  return c.json({ ok: true, siteId: site.id, mutedUntil });
+});
+
+dashboardRoutes.post("/sites/:siteId/inspect", async (c) => {
+  const siteId = c.req.param("siteId").trim();
+  const site = getAllowedSite(c.env, siteId);
+  if (!site) {
+    return c.json({ error: "Sitio no permitido en lista blanca." }, 404);
+  }
+
+  const rl = checkRateLimit(`inspect:${site.id}`, 10, 60_000);
+  if (!rl.allowed) {
+    c.header("Retry-After", String(rl.retryAfterSec));
+    return c.json({ error: "Demasiados diagnósticos seguidos. Espera unos segundos." }, 429);
+  }
+
+  const diagnostics = await runSiteDeepDiagnostics(site);
+  return c.json({ diagnostics });
+});
+
+dashboardRoutes.post("/alerts/test", async (c) => {
+  const rl = checkRateLimit("alerts-test", 4, 60_000);
+  if (!rl.allowed) {
+    c.header("Retry-After", String(rl.retryAfterSec));
+    return c.json({ error: "Espera un minuto antes de enviar otra alerta de prueba." }, 429);
+  }
+
+  const delivery = await sendTestAlertNotification(c.env);
+  return c.json({ ok: true, delivery });
 });
 
 dashboardRoutes.get("/security", async (c) => {

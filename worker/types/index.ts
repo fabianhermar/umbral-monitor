@@ -126,4 +126,13 @@ export interface SiteRuntimeStateRow {
   last_vercel_sync_at: string | null;
   last_vercel_deployment_id: string | null;
   last_vercel_deployment_state: string | null;
+  muted_until: string | null;
+}
+
+export interface IncidentNoteRow {
+  id: string;
+  incident_id: string;
+  author: string;
+  content: string;
+  created_at: string;
 }

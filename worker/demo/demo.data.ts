@@ -277,10 +277,54 @@ function buildInitialSecurityEvents(): DemoSecurityEvent[] {
 // Estado en memoria por isolate para que la demo sea interactiva
 let demoIncidents: DemoIncident[] = buildInitialIncidents();
 let demoSecurityEvents: DemoSecurityEvent[] = buildInitialSecurityEvents();
+let demoNotes = new Map<
+  string,
+  Array<{ id: string; incident_id: string; author: string; content: string; created_at: string }>
+>([
+  [
+    "inc_demo_waf_01",
+    [
+      {
+        id: "note_demo_1",
+        incident_id: "inc_demo_waf_01",
+        author: "visitante-demo",
+        content: "Regla WAF verificada; tráfico automatizado bloqueado en el borde sin impacto en origen.",
+        created_at: minutesAgo(10),
+      },
+    ],
+  ],
+]);
+let demoMutedSites = new Map<string, string | null>();
 
 export function resetDemoState(): void {
   demoIncidents = buildInitialIncidents();
   demoSecurityEvents = buildInitialSecurityEvents();
+  demoNotes = new Map();
+  demoMutedSites = new Map();
+}
+
+export function getDemoNotes(incidentId: string) {
+  return demoNotes.get(incidentId) ?? [];
+}
+
+export function addDemoNote(incidentId: string, content: string) {
+  const note = {
+    id: `note_${crypto.randomUUID().slice(0, 8)}`,
+    incident_id: incidentId,
+    author: "visitante-demo",
+    content: content.slice(0, 800),
+    created_at: new Date().toISOString(),
+  };
+  const existing = demoNotes.get(incidentId) ?? [];
+  demoNotes.set(incidentId, [...existing, note]);
+  return note;
+}
+
+export function setDemoSiteMute(siteId: string, minutes: number): string | null {
+  const mutedUntil =
+    minutes > 0 ? new Date(Date.now() + minutes * 60_000).toISOString() : null;
+  demoMutedSites.set(siteId, mutedUntil);
+  return mutedUntil;
 }
 
 export function getDemoIncidents(): DemoIncident[] {
@@ -407,6 +451,8 @@ export function buildDemoOverview() {
     });
 
     const secEventsCount = demoSecurityEvents.filter((e) => e.site_id === site.id).length;
+    const rawMute = demoMutedSites.get(site.id) ?? null;
+    const mutedUntil = rawMute && new Date(rawMute).getTime() > Date.now() ? rawMute : null;
 
     return {
       id: site.id,
@@ -415,6 +461,8 @@ export function buildDemoOverview() {
       allowedHosts: site.allowedHosts,
       checkUrl: site.checkUrl,
       status,
+      mutedUntil,
+      slaBudgetRemainingPct: hasDown ? 93 : 100,
       uptime24h: hasDown ? 98.4 : 99.96,
       avgLatencyMs: site.baseLatencyMs,
       lastLatencyMs: recentBars[recentBars.length - 1].latencyMs,
@@ -458,6 +506,7 @@ export function buildDemoOverview() {
       openIncidents: activeIncidents.length,
       criticalIncidents,
       securityEvents24h: demoSecurityEvents.length,
+      mttrMinutes30d: 15,
     },
     sites,
   };

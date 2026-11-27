@@ -119,6 +119,33 @@ export async function updateVercelDeploymentState(
     .run();
 }
 
+export async function setSiteMutedUntil(
+  db: D1Database,
+  siteId: string,
+  mutedUntilIso: string | null
+): Promise<void> {
+  await db
+    .prepare(
+      `INSERT INTO site_runtime_state (site_id, muted_until)
+       VALUES (?, ?)
+       ON CONFLICT(site_id) DO UPDATE SET muted_until = excluded.muted_until`
+    )
+    .bind(siteId, mutedUntilIso)
+    .run();
+}
+
+export async function isSiteCurrentlyMuted(
+  db: D1Database,
+  siteId: string
+): Promise<boolean> {
+  const row = await db
+    .prepare("SELECT muted_until FROM site_runtime_state WHERE site_id = ?")
+    .bind(siteId)
+    .first<{ muted_until: string | null }>();
+  if (!row?.muted_until) return false;
+  return new Date(row.muted_until).getTime() > Date.now();
+}
+
 export async function listRecentUptimeChecksSince(
   db: D1Database,
   sinceIso: string,

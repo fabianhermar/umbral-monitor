@@ -13,6 +13,7 @@ import {
   markIncidentResolved,
   updateExistingIncidentRow,
 } from "../repositories/incidents.repo";
+import { isSiteCurrentlyMuted } from "../repositories/uptime.repo";
 import { getAllowedSite } from "../security/allowlist";
 import type { Env, IncidentCategory, IncidentSeverity, IncidentSource } from "../types";
 import { sanitizeMetadata } from "../validators/ingest.validator";
@@ -75,16 +76,19 @@ export async function upsertIncident(
     });
 
     if (nextRank > prevRank && nextRank >= SEVERITY_RANK.high) {
-      await sendIncidentAlert(env, {
-        event: "escalated",
-        siteName: site.name,
-        siteDomain: site.domain,
-        category: input.category,
-        severity: finalSeverity,
-        title: input.title,
-        description: input.description,
-        occurrences: nextOccurrences,
-      });
+      const muted = await isSiteCurrentlyMuted(env.DB, input.siteId);
+      if (!muted) {
+        await sendIncidentAlert(env, {
+          event: "escalated",
+          siteName: site.name,
+          siteDomain: site.domain,
+          category: input.category,
+          severity: finalSeverity,
+          title: input.title,
+          description: input.description,
+          occurrences: nextOccurrences,
+        });
+      }
     }
 
     return { id: existing.id, created: false };
@@ -106,16 +110,19 @@ export async function upsertIncident(
     metadataJson: JSON.stringify(safeIncomingMeta),
   });
 
-  await sendIncidentAlert(env, {
-    event: "opened",
-    siteName: site.name,
-    siteDomain: site.domain,
-    category: input.category,
-    severity: input.severity,
-    title: input.title,
-    description: input.description,
-    occurrences: delta,
-  });
+  const muted = await isSiteCurrentlyMuted(env.DB, input.siteId);
+  if (!muted) {
+    await sendIncidentAlert(env, {
+      event: "opened",
+      siteName: site.name,
+      siteDomain: site.domain,
+      category: input.category,
+      severity: input.severity,
+      title: input.title,
+      description: input.description,
+      occurrences: delta,
+    });
+  }
 
   return { id, created: true };
 }
@@ -139,16 +146,19 @@ export async function resolveIncidentByFingerprint(
 
   await markIncidentResolved(env.DB, existing.id, now, nextDesc);
 
-  await sendIncidentAlert(env, {
-    event: "resolved",
-    siteName: site.name,
-    siteDomain: site.domain,
-    category: existing.category,
-    severity: existing.severity,
-    title: existing.title,
-    description: recoveryDescription ?? "Incidencia resuelta automáticamente.",
-    occurrences: existing.occurrences,
-  });
+  const muted = await isSiteCurrentlyMuted(env.DB, siteId);
+  if (!muted) {
+    await sendIncidentAlert(env, {
+      event: "resolved",
+      siteName: site.name,
+      siteDomain: site.domain,
+      category: existing.category,
+      severity: existing.severity,
+      title: existing.title,
+      description: recoveryDescription ?? "Incidencia resuelta automáticamente.",
+      occurrences: existing.occurrences,
+    });
+  }
 
   return true;
 }

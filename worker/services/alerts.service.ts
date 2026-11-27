@@ -115,3 +115,68 @@ export async function sendIncidentAlert(env: Env, payload: AlertPayload): Promis
     await Promise.allSettled(tasks);
   }
 }
+
+/**
+ * Envía un mensaje de prueba inmediato a Telegram y/o Discord para verificar
+ * que las credenciales están bien configuradas sin esperar a una caída real.
+ */
+export async function sendTestAlertNotification(env: Env): Promise<{
+  telegram: "sent" | "skipped" | "failed";
+  discord: "sent" | "skipped" | "failed";
+}> {
+  const result: {
+    telegram: "sent" | "skipped" | "failed";
+    discord: "sent" | "skipped" | "failed";
+  } = {
+    telegram: "skipped",
+    discord: "skipped",
+  };
+
+  const nowStr = new Date().toISOString();
+
+  if (env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_CHAT_ID) {
+    try {
+      const res = await fetch(
+        `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chat_id: env.TELEGRAM_CHAT_ID,
+            text: `✅ UMBRAL — Prueba de alerta exitosa\nTu canal de Telegram está conectado correctamente (${nowStr}).`,
+          }),
+          signal: AbortSignal.timeout(5000),
+        }
+      );
+      result.telegram = res.ok ? "sent" : "failed";
+    } catch {
+      result.telegram = "failed";
+    }
+  }
+
+  if (env.DISCORD_WEBHOOK_URL) {
+    try {
+      const res = await fetch(env.DISCORD_WEBHOOK_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          embeds: [
+            {
+              title: "✅ UMBRAL — Prueba de alerta exitosa",
+              description:
+                "Tu Webhook de Discord está conectado correctamente y listo para recibir alertas críticas.",
+              color: 0x22e39b,
+              timestamp: nowStr,
+            },
+          ],
+        }),
+        signal: AbortSignal.timeout(5000),
+      });
+      result.discord = res.ok ? "sent" : "failed";
+    } catch {
+      result.discord = "failed";
+    }
+  }
+
+  return result;
+}

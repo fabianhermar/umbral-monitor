@@ -6,7 +6,10 @@
  * eventos de seguridad) y arma el estado detallado de cada dominio permitido.
  */
 
-import { countActiveIncidentsGrouped } from "../repositories/incidents.repo";
+import {
+  countActiveIncidentsGrouped,
+  getAverageMttrMinutes30d,
+} from "../repositories/incidents.repo";
 import { countSecurityEventsSinceBySite } from "../repositories/security-events.repo";
 import {
   getAllSiteRuntimeStates,
@@ -17,14 +20,18 @@ import type { AuthContext, Env, UptimeCheckRow } from "../types";
 
 export async function buildDashboardOverview(env: Env, auth: AuthContext) {
   const sites = getConfiguredSites(env);
-  const since24h = new Date(Date.now() - 24 * 3600_000).toISOString();
+  const nowMs = Date.now();
+  const since24h = new Date(nowMs - 24 * 3600_000).toISOString();
+  const since30d = new Date(nowMs - 30 * 86_400_000).toISOString();
 
-  const [runtimeRows, uptimeRows, openIncidentGroups, securityCounts] = await Promise.all([
-    getAllSiteRuntimeStates(env.DB),
-    listRecentUptimeChecksSince(env.DB, since24h, 1500),
-    countActiveIncidentsGrouped(env.DB),
-    countSecurityEventsSinceBySite(env.DB, since24h),
-  ]);
+  const [runtimeRows, uptimeRows, openIncidentGroups, securityCounts, mttrMinutes30d] =
+    await Promise.all([
+      getAllSiteRuntimeStates(env.DB),
+      listRecentUptimeChecksSince(env.DB, since24h, 1500),
+      countActiveIncidentsGrouped(env.DB),
+      countSecurityEventsSinceBySite(env.DB, since24h),
+      getAverageMttrMinutes30d(env.DB, since30d),
+    ]);
 
   const runtimeMap = new Map(runtimeRows.map((r) => [r.site_id, r]));
   const secMap = new Map(securityCounts.map((r) => [r.site_id, r.count]));
@@ -85,6 +92,18 @@ export async function buildDashboardOverview(env: Env, auth: AuthContext) {
       status = "under_attack";
     }
 
+    const mutedUntil =
+      runtime?.muted_until && new Date(runtime.muted_until).getTime() > nowMs
+        ? runtime.muted_until
+        : null;
+
+    // Presupuesto mensual SLA 99.9% = 43.2 minutos permitidos de indisponibilidad al mes
+    const failedChecks = checks.length - okCount;
+    const slaBudgetRemainingPct =
+      checks.length > 0
+        ? Math.max(0, Math.min(100, Math.round(((43.2 - failedChecks) / 43.2) * 100)))
+        : 100;
+
     return {
       id: site.id,
       name: site.name,
@@ -92,6 +111,8 @@ export async function buildDashboardOverview(env: Env, auth: AuthContext) {
       allowedHosts: site.allowedHosts,
       checkUrl: site.checkUrl,
       status,
+      mutedUntil,
+      slaBudgetRemainingPct,
       uptime24h,
       avgLatencyMs,
       lastLatencyMs: latestCheck?.latency_ms ?? null,
@@ -137,6 +158,7 @@ export async function buildDashboardOverview(env: Env, auth: AuthContext) {
       openIncidents: totalOpenIncidents,
       criticalIncidents,
       securityEvents24h: totalSecurityEvents24h,
+      mttrMinutes30d,
     },
     sites: siteSummaries,
   };
