@@ -6,7 +6,7 @@
  * tira de 24 pulsos, métricas tabulares y conectores Cloudflare/Vercel.
  */
 
-import { ArrowUpRight, Shield, ShieldAlert } from "lucide-react";
+import { ArrowUpRight, BellOff, BellRing, Shield, ShieldAlert, Stethoscope } from "lucide-react";
 import type { SiteOperationalStatus, SiteSummary } from "../../types/dashboard.types";
 import { formatRelativeTime } from "../../utils/formatters";
 import { InfoTip } from "../ui/InfoTip";
@@ -15,6 +15,8 @@ interface DomainMonolithsProps {
   sites: SiteSummary[];
   selectedSiteId: string;
   onSelectSite: (siteId: string) => void;
+  onInspectSite: (site: SiteSummary) => void;
+  onToggleMuteSite: (site: SiteSummary) => void;
 }
 
 const STATUS_META: Record<
@@ -36,6 +38,8 @@ export function DomainMonoliths({
   sites,
   selectedSiteId,
   onSelectSite,
+  onInspectSite,
+  onToggleMuteSite,
 }: DomainMonolithsProps) {
   return (
     <section className="space-y-3">
@@ -253,7 +257,50 @@ export function DomainMonoliths({
                   <InfoTip glossaryKey="cf-vercel-sync" align="left" />
                 </div>
 
-                <span className="text-[var(--ink-muted)]">{site.allowedHosts.length} host(s)</span>
+                <span className="text-[var(--ink-muted)]">
+                  SLA {site.slaBudgetRemainingPct ?? 100}%
+                </span>
+              </div>
+
+              {/* Barra rápida de acciones operativas por dominio */}
+              <div className="mt-3 flex items-center justify-between gap-2 border-t border-[var(--border-subtle)] pt-2.5 font-mono text-[10.5px]">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onInspectSite(site);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-inset)] px-2.5 py-1 text-[var(--ink-secondary)] transition hover:border-[var(--signal-cobalt)] hover:text-[var(--signal-cobalt)]"
+                >
+                  <Stethoscope className="h-3 w-3" />
+                  Diagnóstico DNS/SSL
+                </button>
+
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleMuteSite(site);
+                  }}
+                  title="Pausar o reanudar alertas push (Telegram/Discord) para este dominio"
+                  className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 transition ${
+                    site.mutedUntil
+                      ? "border-[var(--signal-ochre)] bg-[var(--signal-ochre-soft)] text-[var(--signal-ochre)]"
+                      : "border-[var(--border-subtle)] bg-[var(--bg-inset)] text-[var(--ink-muted)] hover:text-[var(--ink-primary)]"
+                  }`}
+                >
+                  {site.mutedUntil ? (
+                    <>
+                      <BellOff className="h-3 w-3" />
+                      Silenciado (Reanudar)
+                    </>
+                  ) : (
+                    <>
+                      <BellRing className="h-3 w-3" />
+                      Silenciar 1h
+                    </>
+                  )}
+                </button>
               </div>
             </article>
           );

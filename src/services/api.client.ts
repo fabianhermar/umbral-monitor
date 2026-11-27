@@ -11,9 +11,11 @@ import type {
   DemoProbeResult,
   IncidentFilters,
   IncidentItem,
+  IncidentNote,
   IncidentStatus,
   OverviewResponse,
   SecurityResponse,
+  SiteDeepDiagnostics,
   UptimePoint,
 } from "../types/dashboard.types";
 
@@ -139,4 +141,56 @@ export function simulateDemoIncident(kind: "attack" | "downtime"): Promise<{ ok:
 
 export function resetDemoData(): Promise<{ ok: boolean }> {
   return apiFetch("/api/dashboard/demo/reset", { method: "POST" });
+}
+
+export function bulkUpdateIncidentStatus(
+  ids: string[],
+  status: IncidentStatus
+): Promise<{ ok: boolean; updatedCount: number }> {
+  return apiFetch("/api/dashboard/incidents/bulk-status", {
+    method: "POST",
+    body: JSON.stringify({ ids, status }),
+  });
+}
+
+export function fetchIncidentNotes(id: string): Promise<{ notes: IncidentNote[] }> {
+  return apiFetch(`/api/dashboard/incidents/${encodeURIComponent(id)}/notes`);
+}
+
+export function addIncidentNote(
+  id: string,
+  content: string
+): Promise<{ ok: boolean; note: IncidentNote }> {
+  return apiFetch(`/api/dashboard/incidents/${encodeURIComponent(id)}/notes`, {
+    method: "POST",
+    body: JSON.stringify({ content }),
+  });
+}
+
+export function setSiteMaintenanceMute(
+  siteId: string,
+  minutes: number
+): Promise<{ ok: boolean; siteId: string; mutedUntil: string | null }> {
+  return apiFetch(`/api/dashboard/sites/${encodeURIComponent(siteId)}/mute`, {
+    method: "POST",
+    body: JSON.stringify({ minutes }),
+  });
+}
+
+export function inspectSiteDiagnostics(
+  siteId: string
+): Promise<{ diagnostics: SiteDeepDiagnostics }> {
+  return apiFetch(`/api/dashboard/sites/${encodeURIComponent(siteId)}/inspect`, {
+    method: "POST",
+  });
+}
+
+export function sendTestAlert(): Promise<{
+  ok: boolean;
+  delivery: {
+    telegram: "sent" | "skipped" | "failed";
+    discord: "sent" | "skipped" | "failed";
+  };
+}> {
+  return apiFetch("/api/dashboard/alerts/test", { method: "POST" });
 }

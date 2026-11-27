@@ -33,6 +33,8 @@ export interface SiteSummary {
   allowedHosts: string[];
   checkUrl: string;
   status: SiteOperationalStatus;
+  mutedUntil?: string | null;
+  slaBudgetRemainingPct?: number;
   uptime24h: number | null;
   avgLatencyMs: number | null;
   lastLatencyMs: number | null;
@@ -68,6 +70,7 @@ export interface OverviewResponse {
     openIncidents: number;
     criticalIncidents: number;
     securityEvents24h: number;
+    mttrMinutes30d?: number | null;
   };
   sites: SiteSummary[];
 }
@@ -139,4 +142,43 @@ export interface DemoProbeResult {
   missingHeaders: string[];
   downgradedToHttp: boolean;
   error?: string;
+}
+
+export interface IncidentNote {
+  id: string;
+  incident_id: string;
+  author: string;
+  content: string;
+  created_at: string;
+}
+
+export interface SiteDeepDiagnostics {
+  siteId: string;
+  domain: string;
+  checkedAt: string;
+  httpToHttpsRedirect: {
+    enforced: boolean;
+    statusCode: number | null;
+    location: string | null;
+  };
+  httpsProbe: {
+    ok: boolean;
+    finalUrl: string;
+    statusCode: number | null;
+    latencyMs: number;
+    server: string | null;
+    cfRay: string | null;
+    error?: string;
+  };
+  headersAudit: {
+    score: number;
+    headers: Array<{ name: string; present: boolean; valuePreview: string | null }>;
+  };
+  dns: {
+    aRecords: string[];
+    aaaaRecords: string[];
+    caaRecords: string[];
+    hasSpfOrDmarc: boolean;
+  };
+  hasSecurityTxt: boolean;
 }

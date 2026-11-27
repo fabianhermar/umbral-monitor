@@ -15,6 +15,7 @@ import { CommandHero } from "./components/layout/CommandHero";
 import { NavigationRail } from "./components/layout/NavigationRail";
 import { GlossaryDrawer } from "./components/modals/GlossaryDrawer";
 import { SetupModal } from "./components/modals/SetupModal";
+import { SiteDiagnosticsDrawer } from "./components/modals/SiteDiagnosticsDrawer";
 import { DomainMonoliths } from "./components/overview/DomainMonoliths";
 import { PerimeterRadar } from "./components/overview/PerimeterRadar";
 import { PerimeterIntel } from "./components/perimeter/PerimeterIntel";
@@ -22,7 +23,7 @@ import { TelemetryWave } from "./components/telemetry/TelemetryWave";
 import { useDashboardData } from "./hooks/useDashboardData";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { useTheme } from "./hooks/useTheme";
-import type { NavSection } from "./types/dashboard.types";
+import type { NavSection, SiteSummary } from "./types/dashboard.types";
 
 export function App() {
   const { theme, toggleTheme } = useTheme();
@@ -30,11 +31,13 @@ export function App() {
 
   const [section, setSection] = useState<NavSection>("pulse");
   const [selectedIncidentId, setSelectedIncidentId] = useState<string | null>(null);
+  const [inspectedSite, setInspectedSite] = useState<SiteSummary | null>(null);
   const [setupOpen, setSetupOpen] = useState(false);
   const [glossaryOpen, setGlossaryOpen] = useState(false);
 
   const closeOverlays = useCallback(() => {
     setSelectedIncidentId(null);
+    setInspectedSite(null);
     setSetupOpen(false);
     setGlossaryOpen(false);
   }, []);
@@ -139,6 +142,8 @@ export function App() {
                       sites={data.overview.sites}
                       selectedSiteId={data.selectedSiteId}
                       onSelectSite={data.setSelectedSiteId}
+                      onInspectSite={setInspectedSite}
+                      onToggleMuteSite={(s) => void data.toggleSiteMute(s)}
                     />
                   </div>
                   <div className="xl:col-span-4">
@@ -149,9 +154,11 @@ export function App() {
                 <IncidentLedger
                   incidents={data.incidents}
                   sites={data.overview.sites}
+                  mttrMinutes30d={data.overview.kpis.mttrMinutes30d}
                   filters={data.filters}
                   onFilterChange={data.patchFilters}
                   onSelectIncident={(inc) => setSelectedIncidentId(inc.id)}
+                  onBulkResolveVisible={data.bulkResolveIncidents}
                 />
 
                 <TelemetryWave
@@ -167,9 +174,11 @@ export function App() {
               <IncidentLedger
                 incidents={data.incidents}
                 sites={data.overview.sites}
+                mttrMinutes30d={data.overview.kpis.mttrMinutes30d}
                 filters={data.filters}
                 onFilterChange={data.patchFilters}
                 onSelectIncident={(inc) => setSelectedIncidentId(inc.id)}
+                onBulkResolveVisible={data.bulkResolveIncidents}
               />
             )}
 
@@ -189,6 +198,8 @@ export function App() {
                   sites={data.overview.sites}
                   selectedSiteId={data.selectedSiteId}
                   onSelectSite={data.setSelectedSiteId}
+                  onInspectSite={setInspectedSite}
+                  onToggleMuteSite={(s) => void data.toggleSiteMute(s)}
                 />
               </div>
             )}
@@ -212,6 +223,11 @@ export function App() {
       <GlossaryDrawer
         open={glossaryOpen}
         onClose={() => setGlossaryOpen(false)}
+      />
+
+      <SiteDiagnosticsDrawer
+        site={inspectedSite}
+        onClose={() => setInspectedSite(null)}
       />
     </div>
   );

@@ -6,8 +6,9 @@
  * los valores secretos) y ofrece un ejemplo copiable del SDK de Vercel.
  */
 
-import { CheckCircle2, Copy, X, XCircle } from "lucide-react";
+import { BellRing, CheckCircle2, Copy, X, XCircle } from "lucide-react";
 import { useState } from "react";
+import { sendTestAlert } from "../../services/api.client";
 import type { OverviewResponse } from "../../types/dashboard.types";
 import { UmbralLogo } from "../brand/UmbralLogo";
 
@@ -28,8 +29,25 @@ await reportSecurityBlock(
 
 export function SetupModal({ open, overview, onClose }: SetupModalProps) {
   const [copied, setCopied] = useState(false);
+  const [testingAlert, setTestingAlert] = useState(false);
+  const [alertResult, setAlertResult] = useState<string | null>(null);
 
   if (!open) return null;
+
+  async function handleTestAlert() {
+    setTestingAlert(true);
+    setAlertResult(null);
+    try {
+      const res = await sendTestAlert();
+      setAlertResult(
+        `Resultado — Telegram: ${res.delivery.telegram.toUpperCase()} · Discord: ${res.delivery.discord.toUpperCase()}`
+      );
+    } catch (err) {
+      setAlertResult(err instanceof Error ? err.message : "Error enviando prueba");
+    } finally {
+      setTestingAlert(false);
+    }
+  }
 
   const integrations = overview?.integrations;
 
@@ -107,6 +125,26 @@ export function SetupModal({ open, overview, onClose }: SetupModalProps) {
               </div>
             </div>
           ))}
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-inset)] p-3.5">
+          <div className="text-xs text-[var(--ink-secondary)]">
+            Verifica que Telegram y/o Discord reciben mensajes sin esperar a una caída real:
+            {alertResult && (
+              <div className="mt-1 font-mono text-[11px] font-semibold text-[var(--signal-mint)]">
+                {alertResult}
+              </div>
+            )}
+          </div>
+          <button
+            type="button"
+            disabled={testingAlert}
+            onClick={() => void handleTestAlert()}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 py-1.5 font-mono text-xs font-semibold text-[var(--ink-primary)] transition hover:border-[var(--signal-vermilion)] hover:text-[var(--signal-vermilion)] disabled:opacity-50"
+          >
+            <BellRing className="h-3.5 w-3.5" />
+            {testingAlert ? "Enviando..." : "Enviar alerta de prueba"}
+          </button>
         </div>
 
         <div className="umbral-inset mt-5 rounded-xl p-4">

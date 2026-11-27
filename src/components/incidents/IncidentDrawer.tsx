@@ -6,9 +6,11 @@
  * visor técnico JSON opcional y acciones de cambio de estado.
  */
 
-import { CheckCircle2, Clock, Code2, RotateCcw, Search, X } from "lucide-react";
-import { useState } from "react";
-import type { IncidentItem, IncidentStatus, SiteSummary } from "../../types/dashboard.types";
+import { CheckCircle2, Clock, Code2, MessageSquarePlus, RotateCcw, Search, Send, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { addIncidentNote, fetchIncidentNotes } from "../../services/api.client";
+import type { IncidentItem, IncidentNote, IncidentStatus, SiteSummary } from "../../types/dashboard.types";
+import { formatIncidentDuration } from "../../utils/formatters";
 
 interface IncidentDrawerProps {
   incident: IncidentItem | null;
@@ -25,8 +27,33 @@ export function IncidentDrawer({
 }: IncidentDrawerProps) {
   const [updating, setUpdating] = useState(false);
   const [showRaw, setShowRaw] = useState(false);
+  const [notes, setNotes] = useState<IncidentNote[]>([]);
+  const [noteInput, setNoteInput] = useState("");
+  const [savingNote, setSavingNote] = useState(false);
+
+  useEffect(() => {
+    if (!incident) return;
+    setNotes([]);
+    setNoteInput("");
+    fetchIncidentNotes(incident.id)
+      .then((res) => setNotes(res.notes))
+      .catch(() => setNotes([]));
+  }, [incident]);
 
   if (!incident) return null;
+
+  async function handleAddNote(e: React.FormEvent) {
+    e.preventDefault();
+    if (!incident || !noteInput.trim()) return;
+    setSavingNote(true);
+    try {
+      const res = await addIncidentNote(incident.id, noteInput.trim());
+      setNotes((prev) => [...prev, res.note]);
+      setNoteInput("");
+    } finally {
+      setSavingNote(false);
+    }
+  }
 
   async function changeStatus(next: IncidentStatus) {
     if (!incident) return;
@@ -144,7 +171,56 @@ export function IncidentDrawer({
                   </span>
                 </div>
               )}
+              <div className="flex items-center justify-between border-t border-[var(--border-subtle)] pt-2">
+                <span className="text-[var(--ink-muted)]">Duración total</span>
+                <span className="font-semibold text-[var(--ink-primary)]">
+                  {formatIncidentDuration(incident.started_at, incident.resolved_at)}
+                </span>
+              </div>
             </div>
+          </div>
+
+          {/* Bitácora de Notas / Post-Mortem */}
+          <div className="umbral-inset space-y-3 rounded-xl p-4">
+            <div className="flex items-center gap-1.5 font-mono text-[10px] tracking-[0.14em] text-[var(--ink-muted)] uppercase">
+              <MessageSquarePlus className="h-3.5 w-3.5 text-[var(--signal-vermilion)]" />
+              Notas de investigación ({notes.length})
+            </div>
+
+            {notes.length > 0 && (
+              <div className="space-y-2">
+                {notes.map((n) => (
+                  <div
+                    key={n.id}
+                    className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-2.5 text-xs"
+                  >
+                    <div className="flex items-center justify-between font-mono text-[10px] text-[var(--ink-muted)]">
+                      <span>{n.author}</span>
+                      <span>{new Date(n.created_at).toLocaleString("es-MX")}</span>
+                    </div>
+                    <p className="mt-1 text-[var(--ink-primary)]">{n.content}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <form onSubmit={(e) => void handleAddNote(e)} className="flex gap-2">
+              <input
+                type="text"
+                value={noteInput}
+                onChange={(e) => setNoteInput(e.target.value)}
+                placeholder="Añadir acción o nota post-mortem..."
+                className="flex-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-1.5 text-xs text-[var(--ink-primary)] outline-none focus:border-[var(--signal-vermilion)]"
+              />
+              <button
+                type="submit"
+                disabled={savingNote || !noteInput.trim()}
+                className="inline-flex items-center gap-1 rounded-lg bg-[var(--ink-primary)] px-3 py-1.5 font-mono text-[11px] font-semibold text-[var(--ink-inverse)] disabled:opacity-45"
+              >
+                <Send className="h-3 w-3" />
+                Guardar
+              </button>
+            </form>
           </div>
 
           {(topIps.length > 0 ||

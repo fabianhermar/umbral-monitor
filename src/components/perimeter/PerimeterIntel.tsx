@@ -6,9 +6,10 @@
  * acciones WAF/SDK, rutas atacadas y bitácora detallada de eventos en D1.
  */
 
-import { Globe2, ShieldBan, Terminal } from "lucide-react";
+import { Download, Globe2, ShieldBan, Terminal } from "lucide-react";
 import { useState } from "react";
 import type { SecurityResponse, SiteSummary } from "../../types/dashboard.types";
+import { exportSecurityEventsToCsv, exportSecurityEventsToJson } from "../../utils/export";
 import { InfoTip } from "../ui/InfoTip";
 
 interface PerimeterIntelProps {
@@ -209,6 +210,27 @@ export function PerimeterIntel({ security, sites }: PerimeterIntelProps) {
                 {act}
               </button>
             ))}
+
+            {filteredEvents.length > 0 && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => exportSecurityEventsToCsv(filteredEvents)}
+                  className="inline-flex items-center gap-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-inset)] px-2.5 py-1 font-mono text-[11px] text-[var(--ink-secondary)] hover:text-[var(--ink-primary)]"
+                >
+                  <Download className="h-3 w-3" />
+                  CSV
+                </button>
+                <button
+                  type="button"
+                  onClick={() => exportSecurityEventsToJson(filteredEvents)}
+                  className="inline-flex items-center gap-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-inset)] px-2.5 py-1 font-mono text-[11px] text-[var(--ink-secondary)] hover:text-[var(--ink-primary)]"
+                >
+                  <Download className="h-3 w-3" />
+                  JSON
+                </button>
+              </>
+            )}
           </div>
         </div>
 

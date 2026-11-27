@@ -328,6 +328,46 @@ export const GLOSSARY_ENTRIES: readonly GlossaryEntry[] = [
     details:
       "CF ACCESS (recomendado en producción) valida tu correo mediante Cloudflare Zero Trust antes de abrir la página. API KEY exige tu clave privada. ENTORNO LOCAL solo opera en tu computadora durante desarrollo.",
   },
+  {
+    key: "metric-mttr",
+    term: "MTTR (Tiempo Medio de Recuperación)",
+    shortTag: "Métrica SRE",
+    group: "incidencias",
+    accent: "var(--signal-mint)",
+    summary: "Promedio de minutos que tardan tus incidencias en pasar de inicio a resueltas.",
+    details:
+      "Calculado sobre los últimos 30 días. Cuanto más bajo es el MTTR, más rápido se recuperan tus dominios ante caídas o anomalías.",
+  },
+  {
+    key: "sla-budget",
+    term: "Presupuesto SLA 99.9%",
+    shortTag: "Fiabilidad",
+    group: "telemetria",
+    accent: "var(--signal-mint)",
+    summary: "Porcentaje restante de tu margen permitido de caída mensual (43.2 min/mes).",
+    details:
+      "Un SLA de 99.9% permite máximo 43.2 minutos de indisponibilidad al mes. Cada fallo de 1 minuto consume parte de ese presupuesto para avisarte antes de incumplir tu meta.",
+  },
+  {
+    key: "maintenance-mute",
+    term: "Modo Mantenimiento (Silencio)",
+    shortTag: "Control de alertas",
+    group: "estados",
+    accent: "var(--signal-ochre)",
+    summary: "Pausa temporalmente las alertas a Telegram/Discord en un sitio específico.",
+    details:
+      "Ideal cuando estás migrando DNS o desplegando cambios grandes. UMBRAL sigue midiendo y guardando datos en D1, pero no dispara mensajes push mientras dure la ventana.",
+  },
+  {
+    key: "deep-diagnostics",
+    term: "Diagnóstico Profundo (DNS · CAA · HTTPS)",
+    shortTag: "Auditoría en vivo",
+    group: "seguridad",
+    accent: "var(--signal-cobalt)",
+    summary: "Inspección completa bajo demanda de DNS, redirección HTTPS, 7 cabeceras y security.txt.",
+    details:
+      "Consulta Cloudflare DNS-over-HTTPS (registros A, AAAA, CAA de restricción de certificados SSL y SPF/DMARC), verifica que HTTP sin cifrar redirija a HTTPS y revisa las 7 cabeceras modernas de seguridad.",
+  },
 ];
 
 const ENTRY_MAP = new Map<string, GlossaryEntry>(

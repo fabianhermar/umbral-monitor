@@ -10,8 +10,10 @@ import {
   AlertOctagon,
   Ban,
   Bug,
+  CheckCheck,
   CheckCircle2,
   ChevronRight,
+  Download,
   Flame,
   Rocket,
   ShieldAlert,
@@ -25,14 +27,18 @@ import type {
   IncidentStatus,
   SiteSummary,
 } from "../../types/dashboard.types";
+import { exportIncidentsToCsv, exportIncidentsToJson } from "../../utils/export";
+import { formatIncidentDuration } from "../../utils/formatters";
 import { InfoTip } from "../ui/InfoTip";
 
 interface IncidentLedgerProps {
   incidents: IncidentItem[];
   sites: SiteSummary[];
+  mttrMinutes30d?: number | null;
   filters: IncidentFilters;
   onFilterChange: (patch: Partial<IncidentFilters>) => void;
   onSelectIncident: (incident: IncidentItem) => void;
+  onBulkResolveVisible: (ids: string[]) => Promise<void>;
 }
 
 const CATEGORY_META: Record<
@@ -63,11 +69,16 @@ const STATUS_META: Record<IncidentStatus, { label: string; color: string }> = {
 export function IncidentLedger({
   incidents,
   sites,
+  mttrMinutes30d,
   filters,
   onFilterChange,
   onSelectIncident,
+  onBulkResolveVisible,
 }: IncidentLedgerProps) {
   const siteMap = new Map(sites.map((s) => [s.id, s]));
+  const activeVisibleIds = incidents
+    .filter((i) => i.status !== "resolved")
+    .map((i) => i.id);
 
   const statusTabs = [
     { id: "active", label: "Activas" },
@@ -122,24 +133,65 @@ export function IncidentLedger({
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-1.5">
-          {statusTabs.map((t) => {
-            const active = filters.status === t.id;
-            return (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {statusTabs.map((t) => {
+              const active = filters.status === t.id;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => onFilterChange({ status: t.id })}
+                  className={`rounded-lg px-3 py-1 font-mono text-[11px] transition ${
+                    active
+                      ? "bg-[var(--ink-primary)] font-semibold text-[var(--ink-inverse)]"
+                      : "border border-[var(--border-subtle)] bg-[var(--bg-inset)] text-[var(--ink-secondary)] hover:text-[var(--ink-primary)]"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 font-mono text-[11px]">
+            <span className="inline-flex items-center gap-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-inset)] px-2.5 py-1 text-[var(--ink-secondary)]">
+              MTTR 30d: <strong className="text-[var(--ink-primary)]">{mttrMinutes30d ? `${mttrMinutes30d}m` : "—"}</strong>
+              <InfoTip glossaryKey="metric-mttr" />
+            </span>
+
+            {activeVisibleIds.length > 1 && (
               <button
-                key={t.id}
                 type="button"
-                onClick={() => onFilterChange({ status: t.id })}
-                className={`rounded-lg px-3 py-1 font-mono text-[11px] transition ${
-                  active
-                    ? "bg-[var(--ink-primary)] font-semibold text-[var(--ink-inverse)]"
-                    : "border border-[var(--border-subtle)] bg-[var(--bg-inset)] text-[var(--ink-secondary)] hover:text-[var(--ink-primary)]"
-                }`}
+                onClick={() => void onBulkResolveVisible(activeVisibleIds)}
+                className="inline-flex items-center gap-1 rounded-lg border border-[var(--signal-mint)] bg-[var(--signal-mint-soft)] px-2.5 py-1 font-semibold text-[var(--signal-mint)] transition hover:brightness-110"
               >
-                {t.label}
+                <CheckCheck className="h-3.5 w-3.5" />
+                Resolver visibles ({activeVisibleIds.length})
               </button>
-            );
-          })}
+            )}
+
+            {incidents.length > 0 && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => exportIncidentsToCsv(incidents)}
+                  className="inline-flex items-center gap-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-inset)] px-2.5 py-1 text-[var(--ink-secondary)] hover:text-[var(--ink-primary)]"
+                >
+                  <Download className="h-3 w-3" />
+                  CSV
+                </button>
+                <button
+                  type="button"
+                  onClick={() => exportIncidentsToJson(incidents)}
+                  className="inline-flex items-center gap-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-inset)] px-2.5 py-1 text-[var(--ink-secondary)] hover:text-[var(--ink-primary)]"
+                >
+                  <Download className="h-3 w-3" />
+                  JSON
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -225,11 +277,7 @@ export function IncidentLedger({
                     <span style={{ color: st.color }}>{st.label}</span>
                   </div>
                   <div className="mt-1 font-mono text-[10.5px] text-[var(--ink-muted)]">
-                    {new Date(inc.last_seen_at).toLocaleTimeString("es-MX", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}{" "}
-                    · {inc.source}
+                    {formatIncidentDuration(inc.started_at, inc.resolved_at)} · {inc.source}
                   </div>
                 </div>
 

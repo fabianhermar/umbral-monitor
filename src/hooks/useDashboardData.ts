@@ -9,12 +9,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AUTO_REFRESH_INTERVAL_MS } from "../constants/storage";
 import {
+  bulkUpdateIncidentStatus,
   clearSavedApiKey,
   fetchIncidents,
   fetchOverview,
   fetchSecurity,
   fetchUptime,
   setSavedApiKey,
+  setSiteMaintenanceMute,
   triggerManualCheck,
   UnauthorizedError,
   updateIncidentStatus,
@@ -25,6 +27,7 @@ import type {
   IncidentStatus,
   OverviewResponse,
   SecurityResponse,
+  SiteSummary,
   UptimePoint,
 } from "../types/dashboard.types";
 
@@ -129,6 +132,29 @@ export function useDashboardData() {
     [loadAll]
   );
 
+  const bulkResolveIncidents = useCallback(
+    async (ids: string[]) => {
+      const res = await bulkUpdateIncidentStatus(ids, "resolved");
+      setToastMessage(`Se marcaron ${res.updatedCount} incidencia(s) como resueltas.`);
+      await loadAll(true);
+    },
+    [loadAll]
+  );
+
+  const toggleSiteMute = useCallback(
+    async (site: SiteSummary) => {
+      const nextMinutes = site.mutedUntil ? 0 : 60;
+      await setSiteMaintenanceMute(site.id, nextMinutes);
+      setToastMessage(
+        nextMinutes > 0
+          ? `Alertas silenciadas por 1h en ${site.domain} (modo mantenimiento).`
+          : `Alertas reactivadas en ${site.domain}.`
+      );
+      await loadAll(true);
+    },
+    [loadAll]
+  );
+
   const loginWithApiKey = useCallback(
     (apiKey: string) => {
       setSavedApiKey(apiKey);
@@ -170,6 +196,8 @@ export function useDashboardData() {
     refresh: () => void loadAll(false),
     runManualScan,
     changeIncidentStatus,
+    bulkResolveIncidents,
+    toggleSiteMute,
     loginWithApiKey,
     logoutApiKey,
   };
