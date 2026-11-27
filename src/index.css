@@ -1,0 +1,201 @@
+@import "tailwindcss";
+
+/* ============================================================================
+ * UMBRAL — 2026/2027 Design Architecture Tokens
+ * Tactile Neo-Editorial Telemetry · Dual Surface (Obsidian / Alabaster)
+ * ============================================================================ */
+
+:root,
+[data-theme="obsidian"] {
+  --bg-canvas: #09090a;
+  --bg-surface: #111113;
+  --bg-surface-2: #161619;
+  --bg-surface-hover: #1b1b1f;
+  --bg-inset: #0c0c0e;
+  --bg-glass: rgba(17, 17, 19, 0.78);
+
+  --border-subtle: rgba(244, 242, 237, 0.08);
+  --border-strong: rgba(244, 242, 237, 0.16);
+  --specular-top: rgba(255, 255, 255, 0.065);
+
+  --ink-primary: #f4f2ed;
+  --ink-secondary: #a8a6a1;
+  --ink-muted: #6e6d69;
+  --ink-inverse: #0a0a0b;
+
+  --signal-vermilion: #ff5428;
+  --signal-vermilion-soft: rgba(255, 84, 40, 0.14);
+  --signal-mint: #22e39b;
+  --signal-mint-soft: rgba(34, 227, 155, 0.12);
+  --signal-ochre: #f5a524;
+  --signal-ochre-soft: rgba(245, 165, 36, 0.14);
+  --signal-cobalt: #4c8dff;
+  --signal-cobalt-soft: rgba(76, 141, 255, 0.14);
+  --signal-crimson: #ff3b5c;
+  --signal-crimson-soft: rgba(255, 59, 92, 0.15);
+
+  --grid-dot: rgba(244, 242, 237, 0.055);
+  --shadow-elevated: 0 24px 60px -20px rgba(0, 0, 0, 0.75);
+}
+
+[data-theme="alabaster"] {
+  --bg-canvas: #f3f1eb;
+  --bg-surface: #fbfaf7;
+  --bg-surface-2: #efede6;
+  --bg-surface-hover: #e7e4dc;
+  --bg-inset: #e9e6de;
+  --bg-glass: rgba(251, 250, 247, 0.84);
+
+  --border-subtle: rgba(20, 20, 19, 0.09);
+  --border-strong: rgba(20, 20, 19, 0.18);
+  --specular-top: rgba(255, 255, 255, 0.9);
+
+  --ink-primary: #141413;
+  --ink-secondary: #53524d;
+  --ink-muted: #7c7a74;
+  --ink-inverse: #fbfaf7;
+
+  --signal-vermilion: #e03e14;
+  --signal-vermilion-soft: rgba(224, 62, 20, 0.11);
+  --signal-mint: #0d9464;
+  --signal-mint-soft: rgba(13, 148, 100, 0.11);
+  --signal-ochre: #c27803;
+  --signal-ochre-soft: rgba(194, 120, 3, 0.12);
+  --signal-cobalt: #2563eb;
+  --signal-cobalt-soft: rgba(37, 99, 235, 0.11);
+  --signal-crimson: #d91b42;
+  --signal-crimson-soft: rgba(217, 27, 66, 0.11);
+
+  --grid-dot: rgba(20, 20, 19, 0.075);
+  --shadow-elevated: 0 20px 50px -22px rgba(20, 20, 19, 0.18);
+}
+
+@layer base {
+  :root {
+    --font-display: "Space Grotesk", system-ui, -apple-system, sans-serif;
+    --font-serif: "Instrument Serif", Georgia, serif;
+    --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
+  html,
+  body {
+    background-color: var(--bg-canvas);
+    color: var(--ink-primary);
+    font-family: var(--font-display);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    transition: background-color 240ms ease, color 240ms ease;
+  }
+
+  body {
+    min-height: 100vh;
+    background-image:
+      radial-gradient(circle at 1px 1px, var(--grid-dot) 1px, transparent 0),
+      radial-gradient(ellipse 65% 42% at 82% -8%, var(--signal-vermilion-soft), transparent 65%);
+    background-size: 24px 24px, 100% 100%;
+    background-attachment: fixed;
+  }
+
+  code,
+  pre,
+  .font-mono {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .font-serif-editorial {
+    font-family: var(--font-serif);
+  }
+
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Tactile Architectural Surfaces */
+.umbral-panel {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  box-shadow: inset 0 1px 0 var(--specular-top);
+  transition: border-color 180ms ease, background-color 180ms ease, transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.umbral-panel-interactive:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-surface-2);
+}
+
+.umbral-inset {
+  background: var(--bg-inset);
+  border: 1px solid var(--border-subtle);
+}
+
+.umbral-glass {
+  background: var(--bg-glass);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border-color: var(--border-subtle);
+}
+
+/* Precision Micro-Animations */
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.85;
+  }
+  70% {
+    transform: scale(2.1);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(2.1);
+    opacity: 0;
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 2.2s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+
+.animate-fade-up {
+  animation: fade-up 340ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-slide-in {
+  animation: slide-in-right 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Scrollbar Refinement */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 9999px;
+}

@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="umbral-frame" x1="8" y1="6" x2="56" y2="58" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#F4F2ED"/>
+      <stop offset="100%" stop-color="#8E8D89"/>
+    </linearGradient>
+    <linearGradient id="umbral-core" x1="24" y1="22" x2="40" y2="42" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FF7A45"/>
+      <stop offset="100%" stop-color="#FF3B1F"/>
+    </linearGradient>
+  </defs>
+  <!-- Monolithic chamfered perimeter frame -->
+  <rect x="4" y="4" width="56" height="56" rx="14" fill="#0E0E10" stroke="url(#umbral-frame)" stroke-opacity="0.24" stroke-width="1.5"/>
+  <!-- Architectural threshold portal (U-monolith + inverted horizon arc) -->
+  <path d="M18 18V33C18 40.732 24.268 47 32 47C39.732 47 46 40.732 46 33V18" stroke="url(#umbral-frame)" stroke-width="3.2" stroke-linecap="square"/>
+  <!-- Outer telemetry horizon ticks -->
+  <path d="M12 32H15.5M48.5 32H52M32 11.5V15" stroke="#F4F2ED" stroke-opacity="0.45" stroke-width="1.5" stroke-linecap="round"/>
+  <!-- Protected inner threshold arch -->
+  <path d="M24 23V32.5C24 36.9183 27.5817 40.5 32 40.5C36.4183 40.5 40 36.9183 40 32.5V23" stroke="#FF5428" stroke-opacity="0.45" stroke-width="1.75"/>
+  <!-- Precision signal core -->
+  <circle cx="32" cy="30" r="4.5" fill="url(#umbral-core)"/>
+  <circle cx="32" cy="30" r="8.5" stroke="#FF5428" stroke-opacity="0.32" stroke-width="1"/>
+</svg>
