@@ -22,7 +22,7 @@
  *     bloqueo de `/api/ingest` y protección Anti-SSRF.
  */
 
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
 
@@ -50,10 +50,23 @@ const CI_SECRETS_JSON = JSON.stringify({
 
 function killProcess(proc) {
   if (!proc?.pid) return;
+  proc.stdout?.destroy();
+  proc.stderr?.destroy();
+  proc.unref?.();
+
   if (IS_WIN) {
-    spawn("taskkill", ["/PID", String(proc.pid), "/T", "/F"], { stdio: "ignore" });
+    spawnSync("taskkill", ["/PID", String(proc.pid), "/T", "/F"], { stdio: "ignore" });
   } else {
-    proc.kill("SIGTERM");
+    try {
+      process.kill(-proc.pid, "SIGKILL");
+    } catch {
+      // Ignorar si el grupo de procesos ya terminó
+    }
+    try {
+      proc.kill("SIGKILL");
+    } catch {
+      // Ignorar si el proceso ya terminó
+    }
   }
 }
 
@@ -90,7 +103,7 @@ async function runPrivateWorkerE2E() {
   const proc = spawn(
     NPX_BIN,
     ["wrangler", "dev", "--env-file", tempEnvPath, "--port", String(port), "--ip", "127.0.0.1"],
-    { shell: IS_WIN, stdio: ["ignore", "pipe", "pipe"] }
+    { shell: IS_WIN, detached: !IS_WIN, stdio: ["ignore", "pipe", "pipe"] }
   );
 
   let logs = "";
@@ -260,7 +273,7 @@ async function runDemoWorkerE2E() {
       "--ip",
       "127.0.0.1",
     ],
-    { shell: IS_WIN, stdio: ["ignore", "pipe", "pipe"] }
+    { shell: IS_WIN, detached: !IS_WIN, stdio: ["ignore", "pipe", "pipe"] }
   );
 
   let logs = "";
@@ -311,6 +324,4 @@ for (const [name, pass, detail] of allResults) {
   if (!pass) failed = true;
 }
 
-if (failed) {
-  process.exit(1);
-}
+process.exit(failed ? 1 : 0);
