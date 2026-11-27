@@ -1,23 +1,47 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
   <defs>
-    <linearGradient id="umbral-frame" x1="8" y1="6" x2="56" y2="58" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#F4F2ED"/>
-      <stop offset="100%" stop-color="#8E8D89"/>
+    <linearGradient id="umbral-bg" x1="6" y1="4" x2="58" y2="62" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#18181C"/>
+      <stop offset="100%" stop-color="#09090B"/>
     </linearGradient>
-    <linearGradient id="umbral-core" x1="24" y1="22" x2="40" y2="42" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#FF7A45"/>
-      <stop offset="100%" stop-color="#FF3B1F"/>
+    <linearGradient id="umbral-monolith" x1="13" y1="14" x2="51" y2="53" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#F7F5F0"/>
+      <stop offset="55%" stop-color="#DDDAD2"/>
+      <stop offset="100%" stop-color="#A8A49B"/>
     </linearGradient>
+    <linearGradient id="umbral-signal" x1="25" y1="20" x2="39" y2="39" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FF7847"/>
+      <stop offset="55%" stop-color="#FF5428"/>
+      <stop offset="100%" stop-color="#E03112"/>
+    </linearGradient>
+    <radialGradient id="umbral-glow" cx="32" cy="29" r="17" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FF5428" stop-opacity="0.32"/>
+      <stop offset="100%" stop-color="#FF5428" stop-opacity="0"/>
+    </radialGradient>
   </defs>
-  <!-- Monolithic chamfered perimeter frame -->
-  <rect x="4" y="4" width="56" height="56" rx="14" fill="#0E0E10" stroke="url(#umbral-frame)" stroke-opacity="0.24" stroke-width="1.5"/>
-  <!-- Architectural threshold portal (U-monolith + inverted horizon arc) -->
-  <path d="M18 18V33C18 40.732 24.268 47 32 47C39.732 47 46 40.732 46 33V18" stroke="url(#umbral-frame)" stroke-width="3.2" stroke-linecap="square"/>
-  <!-- Outer telemetry horizon ticks -->
-  <path d="M12 32H15.5M48.5 32H52M32 11.5V15" stroke="#F4F2ED" stroke-opacity="0.45" stroke-width="1.5" stroke-linecap="round"/>
-  <!-- Protected inner threshold arch -->
-  <path d="M24 23V32.5C24 36.9183 27.5817 40.5 32 40.5C36.4183 40.5 40 36.9183 40 32.5V23" stroke="#FF5428" stroke-opacity="0.45" stroke-width="1.75"/>
-  <!-- Precision signal core -->
-  <circle cx="32" cy="30" r="4.5" fill="url(#umbral-core)"/>
-  <circle cx="32" cy="30" r="8.5" stroke="#FF5428" stroke-opacity="0.32" stroke-width="1"/>
+
+  <!-- Sculpted Obsidian Tile -->
+  <rect x="2" y="2" width="60" height="60" rx="15" fill="url(#umbral-bg)"/>
+  <rect x="2.75" y="2.75" width="58.5" height="58.5" rx="14.25" stroke="#F4F2ED" stroke-opacity="0.14" stroke-width="1.5"/>
+
+  <!-- Subtle Radiant Core Glow -->
+  <circle cx="32" cy="29" r="17" fill="url(#umbral-glow)"/>
+
+  <!-- Solid Sculptural Monolith U-Gate with 45° Architectural Chamfers -->
+  <path
+    d="M13 18.5L17.5 14H22V34C22 39.5228 26.4772 44 32 44C37.5228 44 42 39.5228 42 34V14H46.5L51 18.5V34C51 44.4934 42.4934 53 32 53C21.5066 53 13 44.4934 13 34V18.5Z"
+    fill="url(#umbral-monolith)"
+  />
+
+  <!-- Rising Sentinel Half-Eclipse above the Threshold -->
+  <path
+    d="M25.5 28.5C25.5 24.9101 28.4101 22 32 22C35.5899 22 38.5 24.9101 38.5 28.5H25.5Z"
+    fill="url(#umbral-signal)"
+  />
+
+  <!-- Primary Threshold Horizon Beam ("El Umbral") -->
+  <rect x="24.5" y="31" width="15" height="3" rx="1.5" fill="url(#umbral-signal)"/>
+
+  <!-- Sub-threshold Echo Bar -->
+  <rect x="27.5" y="36.2" width="9" height="2" rx="1" fill="#FF5428" fill-opacity="0.48"/>
 </svg>
