@@ -1,5 +1,17 @@
-import { getSitesWithVercelProject } from "../lib/allowlist";
-import { resolveIncidentByFingerprint, upsertIncident } from "../lib/db";
+/**
+ * ============================================================================
+ * Recolector Automático — Estado de Despliegues en Vercel (Cada 5 min)
+ * ============================================================================
+ * Consulta la REST API de Vercel únicamente para los `vercelProjectId`
+ * declarados en `config/sites.config.ts` y detecta builds fallidos.
+ */
+
+import { updateVercelDeploymentState } from "../repositories/uptime.repo";
+import { getSitesWithVercelProject } from "../security/allowlist";
+import {
+  resolveIncidentByFingerprint,
+  upsertIncident,
+} from "../services/incidents.service";
 import type { Env } from "../types";
 
 interface VercelDeployment {
@@ -22,16 +34,15 @@ interface VercelDeploymentsResponse {
 
 export async function syncVercelDeployments(env: Env) {
   if (!env.VERCEL_API_TOKEN) {
-    return { skipped: true, reason: "VERCEL_API_TOKEN no configurado", projectsSynced: 0 };
+    return { skipped: true, projectsSynced: 0 };
   }
 
-  const sites = getSitesWithVercelProject();
+  const sites = getSitesWithVercelProject(env);
   if (sites.length === 0) {
-    return { skipped: true, reason: "Ningún sitio tiene vercelProjectId configurado", projectsSynced: 0 };
+    return { skipped: true, projectsSynced: 0 };
   }
 
   const syncTimestamp = new Date().toISOString();
-  const errors: string[] = [];
 
   for (const site of sites) {
     try {
@@ -47,35 +58,25 @@ export async function syncVercelDeployments(env: Env) {
         headers: {
           Authorization: `Bearer ${env.VERCEL_API_TOKEN}`,
         },
+        signal: AbortSignal.timeout(8000),
       });
 
-      if (!res.ok) {
-        errors.push(`${site.id}: Vercel HTTP ${res.status}`);
-        continue;
-      }
+      if (!res.ok) continue;
 
       const data = (await res.json()) as VercelDeploymentsResponse;
       const latest = data.deployments?.[0];
       if (!latest) continue;
 
       const state = (latest.state ?? latest.readyState ?? "UNKNOWN").toUpperCase();
-
-      await env.DB.prepare(
-        `INSERT INTO site_runtime_state
-          (site_id, last_vercel_sync_at, last_vercel_deployment_id, last_vercel_deployment_state)
-         VALUES (?, ?, ?, ?)
-         ON CONFLICT(site_id) DO UPDATE SET
-           last_vercel_sync_at = excluded.last_vercel_sync_at,
-           last_vercel_deployment_id = excluded.last_vercel_deployment_id,
-           last_vercel_deployment_state = excluded.last_vercel_deployment_state`
-      )
-        .bind(site.id, syncTimestamp, latest.uid, state)
-        .run();
+      await updateVercelDeploymentState(env.DB, site.id, syncTimestamp, latest.uid, state);
 
       const deployFp = `vercel-deploy:${site.id}`;
 
       if (state === "ERROR" || state === "CANCELED") {
-        const commitMsg = latest.meta?.githubCommitMessage ?? "Sin mensaje de commit";
+        const commitMsg = (latest.meta?.githubCommitMessage ?? "Sin mensaje de commit").slice(
+          0,
+          160
+        );
         await upsertIncident(env, {
           siteId: site.id,
           fingerprint: deployFp,
@@ -100,14 +101,13 @@ export async function syncVercelDeployments(env: Env) {
           `Nuevo despliegue ${latest.uid} completado en estado READY.`
         );
       }
-    } catch (err) {
-      errors.push(`${site.id}: ${err instanceof Error ? err.message : String(err)}`);
+    } catch {
+      // Continuar con el siguiente proyecto sin interrumpir el ciclo
     }
   }
 
   return {
     skipped: false,
     projectsSynced: sites.length,
-    errors,
   };
 }

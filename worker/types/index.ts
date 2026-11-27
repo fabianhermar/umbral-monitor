@@ -1,3 +1,11 @@
+/**
+ * ============================================================================
+ * Tipos y contratos centrales del Backend (Cloudflare Worker + D1)
+ * ============================================================================
+ * Centraliza todas las definiciones de datos para que rutas, servicios,
+ * repositorios y recolectores compartan exactamente los mismos tipos.
+ */
+
 export type IncidentCategory =
   | "downtime"
   | "attack"
@@ -24,16 +32,39 @@ export type SiteOperationalStatus =
   | "under_attack"
   | "unknown";
 
+export interface AuthContext {
+  mode: "cloudflare-access" | "api-key" | "development" | "demo";
+  user: string;
+}
+
+/**
+ * Variables de entorno y bindings inyectados por Cloudflare Workers.
+ * Los secretos sensibles se configuran con `wrangler secret put <NOMBRE>`.
+ */
 export interface Env {
   DB: D1Database;
   ASSETS?: Fetcher;
   ENVIRONMENT?: string;
+  DEMO_MODE?: string;
   RETENTION_DAYS?: string;
+
+  // Autenticación del Dashboard
   DASHBOARD_ADMIN_EMAIL?: string;
   DASHBOARD_API_KEY?: string;
+  CF_ACCESS_TEAM_DOMAIN?: string; // ej. "mi-equipo.cloudflareaccess.com"
+  CF_ACCESS_AUD?: string;         // Audience (AUD) Tag de la aplicación en Cloudflare Zero Trust
+
+  // Integraciones de lectura (APIs externas)
   CLOUDFLARE_API_TOKEN?: string;
   VERCEL_API_TOKEN?: string;
+
+  // Lista blanca privada opcional por secreto (sobrescribe config/sites.config.ts)
+  SITES_CONFIG_JSON?: string;
+
+  // Secretos HMAC por sitio para /api/ingest
   SITE_SECRETS_JSON?: string;
+
+  // Canales de alerta opcionales
   TELEGRAM_BOT_TOKEN?: string;
   TELEGRAM_CHAT_ID?: string;
   DISCORD_WEBHOOK_URL?: string;

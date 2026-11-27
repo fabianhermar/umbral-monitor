@@ -1,6 +1,17 @@
-import { findSiteByZoneAndHost, getSitesWithCloudflareZone } from "../lib/allowlist";
-import { sha256ShortId } from "../lib/crypto";
-import { upsertIncident } from "../lib/db";
+/**
+ * ============================================================================
+ * Recolector Automático — Seguridad Perimetral Cloudflare (Cada 5 min)
+ * ============================================================================
+ * Consulta Cloudflare GraphQL Analytics API exclusivamente para los `zone_id`
+ * configurados en `config/sites.config.ts`, descarta cualquier host ajeno,
+ * persiste eventos WAF/DDoS/Rate-Limit en D1 y genera incidencias agrupadas.
+ */
+
+import { insertSecurityEventIgnoreDuplicate } from "../repositories/security-events.repo";
+import { updateCloudflareSyncTimestamp } from "../repositories/uptime.repo";
+import { findSiteByZoneAndHost, getSitesWithCloudflareZone } from "../security/allowlist";
+import { sha256ShortId } from "../security/crypto";
+import { upsertIncident } from "../services/incidents.service";
 import type { Env } from "../types";
 
 interface CfFirewallEvent {
@@ -78,12 +89,12 @@ query SecuritySync($zoneTag: string!, $since: Time!, $until: Time!) {
 
 export async function syncCloudflareSecurity(env: Env) {
   if (!env.CLOUDFLARE_API_TOKEN) {
-    return { skipped: true, reason: "CLOUDFLARE_API_TOKEN no configurado", zonesSynced: 0 };
+    return { skipped: true, zonesSynced: 0, totalEventsIngested: 0 };
   }
 
-  const sitesWithZone = getSitesWithCloudflareZone();
+  const sitesWithZone = getSitesWithCloudflareZone(env);
   if (sitesWithZone.length === 0) {
-    return { skipped: true, reason: "Ningún sitio tiene cloudflareZoneId configurado", zonesSynced: 0 };
+    return { skipped: true, zonesSynced: 0, totalEventsIngested: 0 };
   }
 
   const uniqueZones = Array.from(
@@ -96,7 +107,6 @@ export async function syncCloudflareSecurity(env: Env) {
   const syncTimestamp = now.toISOString();
 
   let totalEventsIngested = 0;
-  const errors: string[] = [];
 
   for (const zoneTag of uniqueZones) {
     try {
@@ -110,59 +120,44 @@ export async function syncCloudflareSecurity(env: Env) {
           query: CF_GRAPHQL_QUERY,
           variables: { zoneTag, since, until },
         }),
+        signal: AbortSignal.timeout(8000),
       });
 
-      if (!res.ok) {
-        errors.push(`Zone ${zoneTag}: HTTP ${res.status}`);
-        continue;
-      }
+      if (!res.ok) continue;
 
       const json = (await res.json()) as CfGraphQLResponse;
-      if (json.errors?.length) {
-        errors.push(`Zone ${zoneTag}: ${json.errors.map((e) => e.message).join("; ")}`);
-      }
-
       const zoneData = json.data?.viewer?.zones?.[0];
       const fwEvents = zoneData?.firewallEventsAdaptive ?? [];
 
-      // Agrupar eventos por sitio estrictamente validado en nuestra allowlist
       const eventsBySite = new Map<string, CfFirewallEvent[]>();
 
       for (const ev of fwEvents) {
-        const matchedSite = findSiteByZoneAndHost(zoneTag, ev.clientRequestHTTPHost);
-        if (!matchedSite) {
-          // Host fuera de nuestra lista blanca -> ignorar estrictamente
-          continue;
-        }
+        const matchedSite = findSiteByZoneAndHost(env, zoneTag, ev.clientRequestHTTPHost);
+        if (!matchedSite) continue;
 
         const eventId = await sha256ShortId(
           "cf",
           `${matchedSite.id}|${ev.rayName ?? ""}|${ev.datetime}|${ev.action}|${ev.ruleId ?? ""}|${ev.clientIP}`
         );
 
-        const insertRes = await env.DB.prepare(
-          `INSERT OR IGNORE INTO security_events
-            (id, site_id, occurred_at, source, action, rule_id, rule_source, client_ip, country, host, path, method, user_agent, metadata_json)
-           VALUES (?, ?, ?, 'cloudflare-waf', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-        )
-          .bind(
-            eventId,
-            matchedSite.id,
-            ev.datetime,
-            ev.action ?? "unknown",
-            ev.ruleId ?? null,
-            ev.source ?? null,
-            ev.clientIP ?? null,
-            ev.clientCountryName ?? null,
-            ev.clientRequestHTTPHost ?? matchedSite.domain,
-            ev.clientRequestPath ?? "/",
-            ev.clientRequestHTTPMethodName ?? null,
-            ev.userAgent ?? null,
-            JSON.stringify({ rayName: ev.rayName })
-          )
-          .run();
+        const inserted = await insertSecurityEventIgnoreDuplicate(env.DB, {
+          id: eventId,
+          siteId: matchedSite.id,
+          occurredAt: ev.datetime,
+          source: "cloudflare-waf",
+          action: (ev.action ?? "unknown").slice(0, 40),
+          ruleId: ev.ruleId?.slice(0, 80) ?? null,
+          ruleSource: ev.source?.slice(0, 60) ?? null,
+          clientIp: ev.clientIP?.slice(0, 64) ?? null,
+          country: ev.clientCountryName?.slice(0, 8) ?? null,
+          host: (ev.clientRequestHTTPHost ?? matchedSite.domain).slice(0, 255),
+          path: (ev.clientRequestPath ?? "/").slice(0, 300),
+          method: ev.clientRequestHTTPMethodName?.slice(0, 12) ?? null,
+          userAgent: ev.userAgent?.slice(0, 250) ?? null,
+          metadataJson: JSON.stringify({ rayName: ev.rayName }),
+        });
 
-        if ((insertRes.meta?.changes ?? 0) > 0) {
+        if (inserted) {
           totalEventsIngested += 1;
           const list = eventsBySite.get(matchedSite.id) ?? [];
           list.push(ev);
@@ -170,7 +165,6 @@ export async function syncCloudflareSecurity(env: Env) {
         }
       }
 
-      // Evaluar umbrales de incidencias por sitio
       for (const [siteId, newEvents] of eventsBySite.entries()) {
         const site = sitesWithZone.find((s) => s.id === siteId);
         if (!site) continue;
@@ -230,14 +224,13 @@ export async function syncCloudflareSecurity(env: Env) {
             severity: newEvents.length >= site.attackAlertThreshold5m * 3 ? "critical" : "high",
             source: "cloudflare-waf",
             title: `Pico de bloqueos/ataques en Cloudflare WAF (${site.name})`,
-            description: `Cloudflare registró ${newEvents.length} eventos de firewall (bloqueos/desafíos) en la última ventana.`,
+            description: `Cloudflare registró ${newEvents.length} eventos de firewall en la última ventana.`,
             occurrencesDelta: newEvents.length,
             metadata: { topIps, topPaths, actions: actionCounts },
           });
         }
       }
 
-      // Evaluar picos de errores 5xx agregados a nivel de zona
       const httpGroups = zoneData?.httpRequests1mGroups ?? [];
       let total5xx = 0;
       for (const group of httpGroups) {
@@ -260,22 +253,15 @@ export async function syncCloudflareSecurity(env: Env) {
           title: `Pico de errores 5xx detectado en Cloudflare (${primarySite.domain})`,
           description: `Cloudflare contabilizó ${total5xx} respuestas 5xx en los últimos 10 minutos.`,
           occurrencesDelta: total5xx,
-          metadata: { zoneTag, total5xx },
+          metadata: { total5xx },
         });
       }
 
-      // Actualizar timestamp de sincronización de Cloudflare
       for (const s of zoneSites) {
-        await env.DB.prepare(
-          `INSERT INTO site_runtime_state (site_id, last_cf_sync_at)
-           VALUES (?, ?)
-           ON CONFLICT(site_id) DO UPDATE SET last_cf_sync_at = excluded.last_cf_sync_at`
-        )
-          .bind(s.id, syncTimestamp)
-          .run();
+        await updateCloudflareSyncTimestamp(env.DB, s.id, syncTimestamp);
       }
-    } catch (err) {
-      errors.push(`Zone ${zoneTag}: ${err instanceof Error ? err.message : String(err)}`);
+    } catch {
+      // Continuar con el siguiente Zone ID sin interrumpir el lote completo
     }
   }
 
@@ -283,6 +269,5 @@ export async function syncCloudflareSecurity(env: Env) {
     skipped: false,
     zonesSynced: uniqueZones.length,
     totalEventsIngested,
-    errors,
   };
 }

@@ -1,18 +1,37 @@
-import type { SiteConfig } from "../../config/sites.config";
-import { getConfiguredSites } from "../lib/allowlist";
-import { resolveIncidentByFingerprint, upsertIncident } from "../lib/db";
-import type { Env, SiteOperationalStatus, SiteRuntimeStateRow } from "../types";
+/**
+ * ============================================================================
+ * Recolector Automático — Disponibilidad, Latencia y Cabeceras (Cada 1 min)
+ * ============================================================================
+ * Revisa cada dominio de `config/sites.config.ts`:
+ *  1. Verifica que la URL configurada sea estrictamente HTTPS.
+ *  2. Sigue redirecciones legítimas (ej. 308 de Vercel) y detecta si hubo
+ *     degradación insegura de HTTPS a HTTP.
+ *  3. Audita las 4 cabeceras defensivas (`HDR`).
+ *  4. Aplica histéresis de 2 fallos consecutivos antes de declarar caída crítica.
+ */
 
-const CF_ORIGIN_ERRORS = new Set([520, 521, 522, 523, 524, 525, 526, 530]);
+import type { SiteConfig } from "../../config/sites.config";
+import { CF_ORIGIN_ERROR_CODES, SECURITY_LIMITS } from "../constants/security";
+import {
+  getSiteRuntimeState,
+  insertUptimeCheck,
+  upsertSiteUptimeState,
+} from "../repositories/uptime.repo";
+import { getConfiguredSites } from "../security/allowlist";
+import {
+  resolveIncidentByFingerprint,
+  upsertIncident,
+} from "../services/incidents.service";
+import type { Env, SiteOperationalStatus } from "../types";
 
 interface HeaderAuditResult {
   score: number;
   missing: string[];
 }
 
-function auditSecurityHeaders(headers: Headers): HeaderAuditResult {
+function auditSecurityHeaders(headers: Headers, downgradedToHttp: boolean): HeaderAuditResult {
   const missing: string[] = [];
-  if (!headers.get("strict-transport-security")) {
+  if (downgradedToHttp || !headers.get("strict-transport-security")) {
     missing.push("strict-transport-security");
   }
   if (!headers.get("x-content-type-options")) {
@@ -29,8 +48,10 @@ function auditSecurityHeaders(headers: Headers): HeaderAuditResult {
     missing.push("x-frame-options");
   }
 
-  const score = Math.max(0, 100 - missing.length * 25);
-  return { score, missing };
+  return {
+    score: Math.max(0, 100 - missing.length * 25),
+    missing,
+  };
 }
 
 async function checkSingleSite(env: Env, site: SiteConfig) {
@@ -44,6 +65,10 @@ async function checkSingleSite(env: Env, site: SiteConfig) {
   let headerAudit: HeaderAuditResult = { score: 100, missing: [] };
 
   try {
+    if (!site.checkUrl.startsWith("https://")) {
+      throw new Error("La URL de monitoreo debe usar HTTPS obligatoriamente.");
+    }
+
     const response = await fetch(site.checkUrl, {
       method: "GET",
       redirect: "follow",
@@ -53,16 +78,19 @@ async function checkSingleSite(env: Env, site: SiteConfig) {
         Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language": "es-MX,es;q=0.9,en;q=0.8",
       },
-      signal: AbortSignal.timeout(10_000),
+      signal: AbortSignal.timeout(SECURITY_LIMITS.UPTIME_TIMEOUT_MS),
     });
 
     statusCode = response.status;
     cfRay = response.headers.get("cf-ray");
     const expected = site.expectedStatus ?? [200, 204, 301, 302, 307, 308];
-    ok = expected.includes(response.status);
+    const downgradedToHttp = Boolean(response.url && response.url.startsWith("http://"));
+    ok = expected.includes(response.status) && !downgradedToHttp;
 
     if (!ok) {
-      if (CF_ORIGIN_ERRORS.has(response.status)) {
+      if (downgradedToHttp) {
+        errorMessage = "Redirección insegura detectada hacia HTTP sin cifrar";
+      } else if (CF_ORIGIN_ERROR_CODES.has(response.status)) {
         errorMessage = `Error de origen Cloudflare (${response.status}) al conectar con Vercel`;
       } else if (response.status >= 500) {
         errorMessage = `Error interno del servidor (${response.status})`;
@@ -74,10 +102,9 @@ async function checkSingleSite(env: Env, site: SiteConfig) {
     }
 
     if (site.checkSecurityHeaders !== false && ok && response.status < 300) {
-      headerAudit = auditSecurityHeaders(response.headers);
+      headerAudit = auditSecurityHeaders(response.headers, downgradedToHttp);
     }
 
-    // Consumir/cancelar body para liberar recursos en Workers
     await response.body?.cancel();
   } catch (err) {
     ok = false;
@@ -86,30 +113,19 @@ async function checkSingleSite(env: Env, site: SiteConfig) {
 
   const latencyMs = Date.now() - started;
 
-  await env.DB.prepare(
-    `INSERT INTO uptime_checks
-      (site_id, checked_at, ok, status_code, latency_ms, error_message, cf_ray, security_score, missing_headers)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  )
-    .bind(
-      site.id,
-      checkedAt,
-      ok ? 1 : 0,
-      statusCode,
-      latencyMs,
-      errorMessage,
-      cfRay,
-      headerAudit.score,
-      JSON.stringify(headerAudit.missing)
-    )
-    .run();
+  await insertUptimeCheck(env.DB, {
+    siteId: site.id,
+    checkedAt,
+    ok,
+    statusCode,
+    latencyMs,
+    errorMessage,
+    cfRay,
+    securityScore: headerAudit.score,
+    missingHeadersJson: JSON.stringify(headerAudit.missing),
+  });
 
-  const state = await env.DB.prepare(
-    "SELECT * FROM site_runtime_state WHERE site_id = ?"
-  )
-    .bind(site.id)
-    .first<SiteRuntimeStateRow>();
-
+  const state = await getSiteRuntimeState(env.DB, site.id);
   const prevFailures = state?.consecutive_failures ?? 0;
   const nextFailures = ok ? 0 : prevFailures + 1;
 
@@ -120,21 +136,12 @@ async function checkSingleSite(env: Env, site: SiteConfig) {
     nextStatus = "degraded";
   }
 
-  await env.DB.prepare(
-    `INSERT INTO site_runtime_state (site_id, consecutive_failures, last_status, last_checked_at)
-     VALUES (?, ?, ?, ?)
-     ON CONFLICT(site_id) DO UPDATE SET
-       consecutive_failures = excluded.consecutive_failures,
-       last_status = excluded.last_status,
-       last_checked_at = excluded.last_checked_at`
-  )
-    .bind(site.id, nextFailures, nextStatus, checkedAt)
-    .run();
+  await upsertSiteUptimeState(env.DB, site.id, nextFailures, nextStatus, checkedAt);
 
-  // 1. Gestión de caídas con histéresis de 2 fallos consecutivos
+  // 1. Caídas confirmadas (histéresis de 2 fallos consecutivos)
   const downtimeFp = `downtime:${site.id}`;
   if (!ok && nextFailures >= 2) {
-    const isCfOrigin = statusCode !== null && CF_ORIGIN_ERRORS.has(statusCode);
+    const isCfOrigin = statusCode !== null && CF_ORIGIN_ERROR_CODES.has(statusCode);
     await upsertIncident(env, {
       siteId: site.id,
       fingerprint: downtimeFp,
@@ -164,7 +171,7 @@ async function checkSingleSite(env: Env, site: SiteConfig) {
     );
   }
 
-  // 2. Gestión de latencia degradada
+  // 2. Latencia elevada
   const latencyFp = `latency:${site.id}`;
   if (ok && latencyMs > site.latencyWarnMs) {
     await upsertIncident(env, {
@@ -186,7 +193,7 @@ async function checkSingleSite(env: Env, site: SiteConfig) {
     );
   }
 
-  // 3. Auditoría de cabeceras de seguridad HTTP
+  // 3. Cabeceras de seguridad HTTP (`HDR`)
   if (site.checkSecurityHeaders !== false && ok && statusCode !== null && statusCode < 300) {
     const headerFp = `sec-headers:${site.id}`;
     if (headerAudit.missing.length > 0) {
@@ -223,7 +230,7 @@ async function checkSingleSite(env: Env, site: SiteConfig) {
 }
 
 export async function runUptimeChecks(env: Env) {
-  const sites = getConfiguredSites();
+  const sites = getConfiguredSites(env);
   const settled = await Promise.allSettled(sites.map((site) => checkSingleSite(env, site)));
   return settled.map((r, idx) =>
     r.status === "fulfilled"
@@ -234,7 +241,6 @@ export async function runUptimeChecks(env: Env) {
           statusCode: null,
           latencyMs: 0,
           status: "unknown" as const,
-          error: String(r.reason),
         }
   );
 }

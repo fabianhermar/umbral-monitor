@@ -1,19 +1,22 @@
-import type {
-  Env,
-  IncidentCategory,
-  IncidentRow,
-  IncidentSeverity,
-  IncidentSource,
-} from "../types";
-import { getAllowedSite } from "./allowlist";
-import { sendIncidentAlert } from "./alerts";
+/**
+ * ============================================================================
+ * Servicio de Dominio — Gestión de Incidencias y Retención
+ * ============================================================================
+ * Orquesta la deduplicación por `fingerprint`, escalado de severidad,
+ * cierre automático ante recuperación y purga de registros históricos.
+ */
 
-const SEVERITY_RANK: Record<IncidentSeverity, number> = {
-  low: 1,
-  medium: 2,
-  high: 3,
-  critical: 4,
-};
+import { SEVERITY_RANK } from "../constants/security";
+import {
+  findActiveIncidentByFingerprint,
+  insertIncidentRow,
+  markIncidentResolved,
+  updateExistingIncidentRow,
+} from "../repositories/incidents.repo";
+import { getAllowedSite } from "../security/allowlist";
+import type { Env, IncidentCategory, IncidentSeverity, IncidentSource } from "../types";
+import { sanitizeMetadata } from "../validators/ingest.validator";
+import { sendIncidentAlert } from "./alerts.service";
 
 export interface UpsertIncidentInput {
   siteId: string;
@@ -31,60 +34,45 @@ export async function upsertIncident(
   env: Env,
   input: UpsertIncidentInput
 ): Promise<{ id: string; created: boolean }> {
-  const site = getAllowedSite(input.siteId);
+  const site = getAllowedSite(env, input.siteId);
   if (!site) {
-    throw new Error(`Sitio no autorizado en allowlist: ${input.siteId}`);
+    throw new Error(`Sitio no autorizado en lista blanca: ${input.siteId}`);
   }
 
   const now = new Date().toISOString();
   const delta = Math.max(1, input.occurrencesDelta ?? 1);
+  const safeIncomingMeta = sanitizeMetadata(input.metadata);
 
-  const existing = await env.DB.prepare(
-    `SELECT * FROM incidents
-     WHERE site_id = ? AND fingerprint = ? AND status IN ('open', 'investigating')
-     ORDER BY last_seen_at DESC
-     LIMIT 1`
-  )
-    .bind(input.siteId, input.fingerprint)
-    .first<IncidentRow>();
+  const existing = await findActiveIncidentByFingerprint(
+    env.DB,
+    input.siteId,
+    input.fingerprint
+  );
 
   if (existing) {
     const prevRank = SEVERITY_RANK[existing.severity];
     const nextRank = SEVERITY_RANK[input.severity];
     const finalSeverity = nextRank > prevRank ? input.severity : existing.severity;
 
-    let mergedMeta: Record<string, unknown> = {};
+    let existingMeta: Record<string, unknown> = {};
     try {
-      mergedMeta = JSON.parse(existing.metadata_json || "{}") as Record<string, unknown>;
+      existingMeta = sanitizeMetadata(JSON.parse(existing.metadata_json || "{}"));
     } catch {
-      mergedMeta = {};
-    }
-    if (input.metadata) {
-      mergedMeta = { ...mergedMeta, ...input.metadata };
+      existingMeta = {};
     }
 
+    const mergedMeta = { ...existingMeta, ...safeIncomingMeta };
     const nextOccurrences = existing.occurrences + delta;
 
-    await env.DB.prepare(
-      `UPDATE incidents
-       SET severity = ?,
-           title = ?,
-           description = ?,
-           occurrences = ?,
-           last_seen_at = ?,
-           metadata_json = ?
-       WHERE id = ?`
-    )
-      .bind(
-        finalSeverity,
-        input.title,
-        input.description,
-        nextOccurrences,
-        now,
-        JSON.stringify(mergedMeta),
-        existing.id
-      )
-      .run();
+    await updateExistingIncidentRow(env.DB, {
+      id: existing.id,
+      severity: finalSeverity,
+      title: input.title,
+      description: input.description,
+      occurrences: nextOccurrences,
+      lastSeenAt: now,
+      metadataJson: JSON.stringify(mergedMeta),
+    });
 
     if (nextRank > prevRank && nextRank >= SEVERITY_RANK.high) {
       await sendIncidentAlert(env, {
@@ -104,26 +92,19 @@ export async function upsertIncident(
 
   const id = `inc_${crypto.randomUUID().replace(/-/g, "").slice(0, 14)}`;
 
-  await env.DB.prepare(
-    `INSERT INTO incidents
-      (id, site_id, fingerprint, category, severity, source, status, title, description, occurrences, started_at, last_seen_at, resolved_at, metadata_json)
-     VALUES (?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, NULL, ?)`
-  )
-    .bind(
-      id,
-      input.siteId,
-      input.fingerprint,
-      input.category,
-      input.severity,
-      input.source,
-      input.title,
-      input.description,
-      delta,
-      now,
-      now,
-      JSON.stringify(input.metadata ?? {})
-    )
-    .run();
+  await insertIncidentRow(env.DB, {
+    id,
+    siteId: input.siteId,
+    fingerprint: input.fingerprint,
+    category: input.category,
+    severity: input.severity,
+    source: input.source,
+    title: input.title,
+    description: input.description,
+    occurrences: delta,
+    now,
+    metadataJson: JSON.stringify(safeIncomingMeta),
+  });
 
   await sendIncidentAlert(env, {
     event: "opened",
@@ -145,18 +126,10 @@ export async function resolveIncidentByFingerprint(
   fingerprint: string,
   recoveryDescription?: string
 ): Promise<boolean> {
-  const site = getAllowedSite(siteId);
+  const site = getAllowedSite(env, siteId);
   if (!site) return false;
 
-  const existing = await env.DB.prepare(
-    `SELECT * FROM incidents
-     WHERE site_id = ? AND fingerprint = ? AND status IN ('open', 'investigating')
-     ORDER BY last_seen_at DESC
-     LIMIT 1`
-  )
-    .bind(siteId, fingerprint)
-    .first<IncidentRow>();
-
+  const existing = await findActiveIncidentByFingerprint(env.DB, siteId, fingerprint);
   if (!existing) return false;
 
   const now = new Date().toISOString();
@@ -164,16 +137,7 @@ export async function resolveIncidentByFingerprint(
     ? `${existing.description} — ${recoveryDescription}`
     : existing.description;
 
-  await env.DB.prepare(
-    `UPDATE incidents
-     SET status = 'resolved',
-         resolved_at = ?,
-         last_seen_at = ?,
-         description = ?
-     WHERE id = ?`
-  )
-    .bind(now, now, nextDesc, existing.id)
-    .run();
+  await markIncidentResolved(env.DB, existing.id, now, nextDesc);
 
   await sendIncidentAlert(env, {
     event: "resolved",

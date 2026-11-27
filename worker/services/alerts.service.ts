@@ -1,3 +1,11 @@
+/**
+ * ============================================================================
+ * Servicio de Notificaciones Salientes (Telegram & Discord)
+ * ============================================================================
+ * Envía alertas en tiempo real únicamente para eventos de severidad Alta/Crítica
+ * o recuperaciones de caídas y despliegues, evitando fatiga de alertas.
+ */
+
 import type { Env, IncidentCategory, IncidentSeverity } from "../types";
 
 export interface AlertPayload {
@@ -41,7 +49,7 @@ export async function sendIncidentAlert(env: Env, payload: AlertPayload): Promis
       ? "✅ RECUPERADO"
       : payload.event === "escalated"
         ? "⬆️ ESCALADO"
-        : `${SEVERITY_EMOJI[payload.severity]} INCIDENCIA`;
+        : `${SEVERITY_EMOJI[payload.severity]} UMBRAL ALERTA`;
 
   const lines = [
     `${prefix} [${payload.siteName} · ${payload.siteDomain}]`,
@@ -66,6 +74,7 @@ export async function sendIncidentAlert(env: Env, payload: AlertPayload): Promis
           text,
           disable_web_page_preview: true,
         }),
+        signal: AbortSignal.timeout(5000),
       }).catch(() => undefined)
     );
   }
@@ -73,10 +82,10 @@ export async function sendIncidentAlert(env: Env, payload: AlertPayload): Promis
   if (env.DISCORD_WEBHOOK_URL) {
     const color =
       payload.event === "resolved"
-        ? 0x10b981
+        ? 0x22e39b
         : payload.severity === "critical"
-          ? 0xf43f5e
-          : 0xf59e0b;
+          ? 0xff3b5c
+          : 0xff5428;
 
     tasks.push(
       fetch(env.DISCORD_WEBHOOK_URL, {
@@ -97,6 +106,7 @@ export async function sendIncidentAlert(env: Env, payload: AlertPayload): Promis
             },
           ],
         }),
+        signal: AbortSignal.timeout(5000),
       }).catch(() => undefined)
     );
   }
