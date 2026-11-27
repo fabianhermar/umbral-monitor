@@ -1,13 +1,14 @@
-import {
-  CheckCircle2,
-  Clock,
-  Code2,
-  RotateCcw,
-  Search,
-  X,
-} from "lucide-react";
+/**
+ * ============================================================================
+ * Componente de Incidencias — `IncidentDrawer`
+ * ============================================================================
+ * Panel lateral deslizante con cronología, chips de IPs/rutas/cabeceras,
+ * visor técnico JSON opcional y acciones de cambio de estado.
+ */
+
+import { CheckCircle2, Clock, Code2, RotateCcw, Search, X } from "lucide-react";
 import { useState } from "react";
-import type { IncidentItem, IncidentStatus, SiteSummary } from "../types";
+import type { IncidentItem, IncidentStatus, SiteSummary } from "../../types/dashboard.types";
 
 interface IncidentDrawerProps {
   incident: IncidentItem | null;
@@ -46,15 +47,12 @@ export function IncidentDrawer({
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
-      {/* Backdrop */}
       <div
         className="fixed inset-0 bg-black/55 backdrop-blur-xs transition-opacity"
         onClick={onClose}
       />
 
-      {/* Slide-Over Glassmorphic Inspector */}
       <aside className="umbral-glass animate-slide-in relative z-10 flex h-full w-full max-w-lg flex-col border-l shadow-2xl">
-        {/* Header */}
         <div className="flex items-start justify-between gap-4 border-b border-[var(--border-subtle)] p-5">
           <div>
             <div className="flex flex-wrap items-center gap-2 font-mono text-[10px] tracking-[0.16em] text-[var(--ink-muted)] uppercase">
@@ -77,13 +75,11 @@ export function IncidentDrawer({
           </button>
         </div>
 
-        {/* Body */}
         <div className="flex-1 space-y-5 overflow-y-auto p-5">
           <p className="text-sm leading-relaxed text-[var(--ink-secondary)]">
             {incident.description}
           </p>
 
-          {/* Primary Metadata Grid */}
           <div className="grid grid-cols-2 gap-2.5">
             <div className="umbral-inset rounded-xl p-3">
               <div className="font-mono text-[9.5px] tracking-wider text-[var(--ink-muted)] uppercase">
@@ -122,7 +118,6 @@ export function IncidentDrawer({
             </div>
           </div>
 
-          {/* Timeline */}
           <div className="umbral-inset rounded-xl p-4">
             <div className="mb-3 flex items-center gap-1.5 font-mono text-[10px] tracking-[0.14em] text-[var(--ink-muted)] uppercase">
               <Clock className="h-3.5 w-3.5" />
@@ -152,16 +147,18 @@ export function IncidentDrawer({
             </div>
           </div>
 
-          {/* Structured Signals Extracted from Metadata */}
-          {(topIps.length > 0 || topPaths.length > 0 || missingHeaders.length > 0 || Boolean(meta.ip)) && (
+          {(topIps.length > 0 ||
+            topPaths.length > 0 ||
+            missingHeaders.length > 0 ||
+            Boolean(meta.clientIp)) && (
             <div className="space-y-3">
-              {(topIps.length > 0 || typeof meta.ip === "string") && (
+              {(topIps.length > 0 || typeof meta.clientIp === "string") && (
                 <div>
                   <div className="mb-1.5 font-mono text-[10px] tracking-wider text-[var(--ink-muted)] uppercase">
                     IPs involucradas
                   </div>
                   <div className="flex flex-wrap gap-1.5">
-                    {(topIps.length > 0 ? topIps : [String(meta.ip)]).map((ip) => (
+                    {(topIps.length > 0 ? topIps : [String(meta.clientIp)]).map((ip) => (
                       <span
                         key={ip}
                         className="rounded-md border border-[var(--border-subtle)] bg-[var(--bg-inset)] px-2.5 py-1 font-mono text-xs text-[var(--signal-vermilion)]"
@@ -215,7 +212,6 @@ export function IncidentDrawer({
             </div>
           )}
 
-          {/* Raw Technical Payload Toggle */}
           <div>
             <button
               type="button"
@@ -239,7 +235,6 @@ export function IncidentDrawer({
           </div>
         </div>
 
-        {/* Sticky Action Footer */}
         <div className="flex items-center justify-between gap-2 border-t border-[var(--border-subtle)] p-4">
           {incident.status !== "resolved" ? (
             <>

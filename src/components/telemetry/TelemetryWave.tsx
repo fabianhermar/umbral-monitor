@@ -1,3 +1,11 @@
+/**
+ * ============================================================================
+ * Componente de Telemetría — `TelemetryWave`
+ * ============================================================================
+ * Gráfica de latencia histórica (6h, 24h, 72h) y cálculo de percentiles
+ * estadísticos (`P50`, `P95`, `Pico Máximo` y conteo de fallos).
+ */
+
 import {
   Area,
   AreaChart,
@@ -7,20 +15,15 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import type { SiteSummary, UptimePoint } from "../types";
-import { InfoTip } from "./InfoTip";
+import type { SiteSummary, UptimePoint } from "../../types/dashboard.types";
+import { computePercentile } from "../../utils/math";
+import { InfoTip } from "../ui/InfoTip";
 
 interface TelemetryWaveProps {
   checks: UptimePoint[];
   sites: SiteSummary[];
   hours: number;
   onChangeHours: (hours: number) => void;
-}
-
-function percentile(sorted: number[], p: number): number | null {
-  if (sorted.length === 0) return null;
-  const idx = Math.min(sorted.length - 1, Math.floor((p / 100) * sorted.length));
-  return sorted[idx];
 }
 
 export function TelemetryWave({ checks, sites, hours, onChangeHours }: TelemetryWaveProps) {
@@ -31,8 +34,8 @@ export function TelemetryWave({ checks, sites, hours, onChangeHours }: Telemetry
     .map((c) => c.latency_ms)
     .sort((a, b) => a - b);
 
-  const p50 = percentile(okLatencies, 50);
-  const p95 = percentile(okLatencies, 95);
+  const p50 = computePercentile(okLatencies, 50);
+  const p95 = computePercentile(okLatencies, 95);
   const maxMs = okLatencies.length ? okLatencies[okLatencies.length - 1] : null;
   const failedCount = checks.filter((c) => c.ok === 0).length;
 
@@ -77,7 +80,6 @@ export function TelemetryWave({ checks, sites, hours, onChangeHours }: Telemetry
         </div>
       </div>
 
-      {/* Percentile Strip */}
       <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
         <div className="umbral-inset rounded-xl px-3.5 py-2.5">
           <div className="flex items-center justify-between font-mono text-[9.5px] tracking-wider text-[var(--ink-muted)] uppercase">
@@ -88,6 +90,7 @@ export function TelemetryWave({ checks, sites, hours, onChangeHours }: Telemetry
             {p50 !== null ? `${p50} ms` : "—"}
           </div>
         </div>
+
         <div className="umbral-inset rounded-xl px-3.5 py-2.5">
           <div className="flex items-center justify-between font-mono text-[9.5px] tracking-wider text-[var(--ink-muted)] uppercase">
             <span>P95 Percentil</span>
@@ -97,6 +100,7 @@ export function TelemetryWave({ checks, sites, hours, onChangeHours }: Telemetry
             {p95 !== null ? `${p95} ms` : "—"}
           </div>
         </div>
+
         <div className="umbral-inset rounded-xl px-3.5 py-2.5">
           <div className="flex items-center justify-between font-mono text-[9.5px] tracking-wider text-[var(--ink-muted)] uppercase">
             <span>Pico Máximo</span>
@@ -106,6 +110,7 @@ export function TelemetryWave({ checks, sites, hours, onChangeHours }: Telemetry
             {maxMs !== null ? `${maxMs} ms` : "—"}
           </div>
         </div>
+
         <div className="umbral-inset rounded-xl px-3.5 py-2.5">
           <div className="flex items-center justify-between font-mono text-[9.5px] tracking-wider text-[var(--ink-muted)] uppercase">
             <span>Fallos ({hours}h)</span>
@@ -113,16 +118,13 @@ export function TelemetryWave({ checks, sites, hours, onChangeHours }: Telemetry
           </div>
           <div
             className="mt-1 font-mono text-base font-semibold tabular-nums"
-            style={{
-              color: failedCount > 0 ? "var(--signal-crimson)" : "var(--signal-mint)",
-            }}
+            style={{ color: failedCount > 0 ? "var(--signal-crimson)" : "var(--signal-mint)" }}
           >
             {failedCount}
           </div>
         </div>
       </div>
 
-      {/* Waveform Chart */}
       <div className="mt-5">
         {data.length === 0 ? (
           <div className="umbral-inset flex h-60 items-center justify-center rounded-xl text-xs text-[var(--ink-muted)]">
@@ -163,11 +165,11 @@ export function TelemetryWave({ checks, sites, hours, onChangeHours }: Telemetry
                     fontFamily: "var(--font-mono)",
                     color: "var(--ink-primary)",
                   }}
-                  formatter={(value: number, _name, item) => {
-                    const p = item.payload as (typeof data)[number];
+                  formatter={(value, _name, item) => {
+                    const p = item.payload as (typeof data)[number] | undefined;
                     return [
-                      `${value} ms · HTTP ${p.statusCode ?? "ERR"} (${p.siteName})`,
-                      p.ok ? "OK" : "FALLO",
+                      `${value ?? "—"} ms · HTTP ${p?.statusCode ?? "ERR"} (${p?.siteName ?? ""})`,
+                      p?.ok ? "OK" : "FALLO",
                     ];
                   }}
                 />

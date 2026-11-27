@@ -1,7 +1,15 @@
+/**
+ * ============================================================================
+ * Modal de Configuración — `SetupModal`
+ * ============================================================================
+ * Muestra el estado de cada integración configurada en el Worker (sin exponer
+ * los valores secretos) y ofrece un ejemplo copiable del SDK de Vercel.
+ */
+
 import { CheckCircle2, Copy, X, XCircle } from "lucide-react";
 import { useState } from "react";
-import type { OverviewResponse } from "../types";
-import { UmbralLogo } from "./UmbralLogo";
+import type { OverviewResponse } from "../../types/dashboard.types";
+import { UmbralLogo } from "../brand/UmbralLogo";
 
 interface SetupModalProps {
   open: boolean;
@@ -37,9 +45,14 @@ export function SetupModal({ open, overview, onClose }: SetupModalProps) {
       hint: "Secreto VERCEL_API_TOKEN + vercelProjectId por dominio en config/sites.config.ts",
     },
     {
-      label: "Ingesta HMAC-SHA256 (Errores 500 y bloqueos internos)",
+      label: "Ingesta HMAC-SHA256 + Anti-Replay",
       ok: Boolean(integrations?.ingestSecretsConfigured),
       hint: "SITE_SECRETS_JSON configurado + sdk/vercel-monitor.ts instalado en tus proyectos",
+    },
+    {
+      label: "Cloudflare Access Zero Trust (JWT RS256)",
+      ok: Boolean(integrations?.cfAccessVerifiedConfigured),
+      hint: "Opcional: CF_ACCESS_TEAM_DOMAIN + CF_ACCESS_AUD para verificar firma JWT de Zero Trust",
     },
     {
       label: "Alertas Instantáneas (Telegram / Discord)",
@@ -76,16 +89,13 @@ export function SetupModal({ open, overview, onClose }: SetupModalProps) {
           <code className="rounded bg-[var(--bg-inset)] px-1.5 py-0.5 text-[var(--signal-vermilion)]">
             config/sites.config.ts
           </code>
-          . Cualquier dominio externo, host suplantado o firma HMAC inválida es rechazado
-          automáticamente con HTTP 401/403.
+          . Cualquier dominio externo, host suplantado, repetición o firma HMAC inválida es
+          rechazado automáticamente.
         </p>
 
         <div className="mt-4 space-y-2.5">
           {rows.map((item) => (
-            <div
-              key={item.label}
-              className="umbral-inset flex items-start gap-3 rounded-xl p-3.5"
-            >
+            <div key={item.label} className="umbral-inset flex items-start gap-3 rounded-xl p-3.5">
               {item.ok ? (
                 <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--signal-mint)]" />
               ) : (
@@ -121,8 +131,9 @@ export function SetupModal({ open, overview, onClose }: SetupModalProps) {
         <div className="mt-5 flex items-center justify-between">
           <span className="font-mono text-[10.5px] text-[var(--ink-muted)]">
             Atajos: <kbd className="rounded border border-[var(--border-strong)] px-1">R</kbd>{" "}
-            refrescar · <kbd className="rounded border border-[var(--border-strong)] px-1">ESC</kbd>{" "}
-            cerrar paneles
+            refrescar · <kbd className="rounded border border-[var(--border-strong)] px-1">?</kbd>{" "}
+            guía · <kbd className="rounded border border-[var(--border-strong)] px-1">ESC</kbd>{" "}
+            cerrar
           </span>
           <button
             type="button"

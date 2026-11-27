@@ -1,3 +1,10 @@
+/**
+ * ============================================================================
+ * Contratos de Datos del Frontend (`UMBRAL`)
+ * ============================================================================
+ * Refleja exactamente las respuestas JSON devueltas por `/api/dashboard/*`.
+ */
+
 export type IncidentCategory =
   | "downtime"
   | "attack"
@@ -9,6 +16,8 @@ export type IncidentCategory =
 export type IncidentSeverity = "low" | "medium" | "high" | "critical";
 export type IncidentStatus = "open" | "investigating" | "resolved";
 export type SiteOperationalStatus = "up" | "degraded" | "down" | "under_attack" | "unknown";
+export type ThemeMode = "obsidian" | "alabaster";
+export type NavSection = "pulse" | "incidents" | "perimeter" | "telemetry";
 
 export interface UptimeBarPoint {
   checkedAt: string;
@@ -39,8 +48,9 @@ export interface SiteSummary {
 }
 
 export interface OverviewResponse {
+  isDemo?: boolean;
   auth: {
-    mode: "cloudflare-access" | "api-key" | "development";
+    mode: "cloudflare-access" | "api-key" | "development" | "demo";
     user: string;
   };
   integrations: {
@@ -49,6 +59,7 @@ export interface OverviewResponse {
     telegramConfigured: boolean;
     discordConfigured: boolean;
     ingestSecretsConfigured: boolean;
+    cfAccessVerifiedConfigured?: boolean;
   };
   kpis: {
     totalSites: number;
@@ -107,4 +118,25 @@ export interface UptimePoint {
   ok: number;
   status_code: number | null;
   latency_ms: number;
+}
+
+export interface IncidentFilters {
+  status: string;
+  category: string;
+  severity: string;
+}
+
+export interface DemoProbeResult {
+  requestedUrl: string;
+  finalUrl: string;
+  ok: boolean;
+  statusCode: number | null;
+  latencyMs: number;
+  server: string | null;
+  cfRay: string | null;
+  securityScore: number;
+  presentHeaders: string[];
+  missingHeaders: string[];
+  downgradedToHttp: boolean;
+  error?: string;
 }

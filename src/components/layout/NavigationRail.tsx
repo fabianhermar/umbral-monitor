@@ -1,26 +1,37 @@
+/**
+ * ============================================================================
+ * Componente de Layout — `NavigationRail`
+ * ============================================================================
+ * Rail espacial fijo en escritorio (78px) y dock flotante translúcido en móvil.
+ * Permite cambiar de sección, alternar tema, abrir la guía, ver integraciones
+ * y cerrar sesión cuando se autentica mediante `DASHBOARD_API_KEY`.
+ */
+
 import {
   Activity,
   AlertTriangle,
   BookOpen,
+  LogOut,
   Moon,
   Radar,
   ShieldAlert,
   SlidersHorizontal,
   Sun,
 } from "lucide-react";
-import { UmbralLogo } from "./UmbralLogo";
-
-export type NavSection = "pulse" | "incidents" | "perimeter" | "telemetry";
+import type { NavSection, ThemeMode } from "../../types/dashboard.types";
+import { UmbralLogo } from "../brand/UmbralLogo";
 
 interface NavigationRailProps {
   active: NavSection;
   onSelect: (section: NavSection) => void;
   openIncidentsCount: number;
   healthStatus: "healthy" | "warning" | "critical";
-  theme: "obsidian" | "alabaster";
+  theme: ThemeMode;
+  authMode?: "cloudflare-access" | "api-key" | "development" | "demo";
   onToggleTheme: () => void;
   onOpenSetup: () => void;
   onOpenGlossary: () => void;
+  onLogout: () => void;
 }
 
 const NAV_ITEMS: Array<{
@@ -41,13 +52,22 @@ export function NavigationRail({
   openIncidentsCount,
   healthStatus,
   theme,
+  authMode,
   onToggleTheme,
   onOpenSetup,
   onOpenGlossary,
+  onLogout,
 }: NavigationRailProps) {
+  const pulseColor =
+    healthStatus === "critical"
+      ? "var(--signal-crimson)"
+      : healthStatus === "warning"
+        ? "var(--signal-ochre)"
+        : "var(--signal-mint)";
+
   return (
     <>
-      {/* Desktop Left Architectural Rail */}
+      {/* Rail lateral fijo (Escritorio) */}
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-[78px] flex-col items-center justify-between border-r border-[var(--border-subtle)] bg-[var(--bg-surface)] py-5 lg:flex">
         <div className="flex flex-col items-center gap-6">
           <button
@@ -106,7 +126,11 @@ export function NavigationRail({
           <button
             type="button"
             onClick={onToggleTheme}
-            title={theme === "obsidian" ? "Cambiar a tema claro (Alabastro)" : "Cambiar a tema oscuro (Obsidiana)"}
+            title={
+              theme === "obsidian"
+                ? "Cambiar a tema claro (Alabastro)"
+                : "Cambiar a tema oscuro (Obsidiana)"
+            }
             className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-inset)] text-[var(--ink-secondary)] transition hover:border-[var(--border-strong)] hover:text-[var(--ink-primary)]"
           >
             {theme === "obsidian" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
@@ -121,6 +145,17 @@ export function NavigationRail({
             <SlidersHorizontal className="h-4 w-4" />
           </button>
 
+          {authMode === "api-key" && (
+            <button
+              type="button"
+              onClick={onLogout}
+              title="Cerrar sesión (borrar API Key de esta pestaña)"
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-inset)] text-[var(--ink-secondary)] transition hover:border-[var(--signal-crimson)] hover:text-[var(--signal-crimson)]"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
+          )}
+
           <div
             className="mt-1 flex flex-col items-center gap-1"
             title="Monitorización automática activa"
@@ -128,25 +163,11 @@ export function NavigationRail({
             <span className="relative flex h-2.5 w-2.5">
               <span
                 className="animate-pulse-ring absolute inline-flex h-full w-full rounded-full"
-                style={{
-                  backgroundColor:
-                    healthStatus === "critical"
-                      ? "var(--signal-crimson)"
-                      : healthStatus === "warning"
-                        ? "var(--signal-ochre)"
-                        : "var(--signal-mint)",
-                }}
+                style={{ backgroundColor: pulseColor }}
               />
               <span
                 className="relative inline-flex h-2.5 w-2.5 rounded-full"
-                style={{
-                  backgroundColor:
-                    healthStatus === "critical"
-                      ? "var(--signal-crimson)"
-                      : healthStatus === "warning"
-                        ? "var(--signal-ochre)"
-                        : "var(--signal-mint)",
-                }}
+                style={{ backgroundColor: pulseColor }}
               />
             </span>
             <span className="font-mono text-[8px] tracking-widest text-[var(--ink-muted)] uppercase">
@@ -156,7 +177,7 @@ export function NavigationRail({
         </div>
       </aside>
 
-      {/* Mobile Floating Dock */}
+      {/* Dock flotante (Móvil / Tablet) */}
       <nav
         className="umbral-glass fixed bottom-4 left-1/2 z-40 flex -translate-x-1/2 items-center gap-1 rounded-2xl border p-1.5 shadow-2xl lg:hidden"
         aria-label="Navegación móvil"
@@ -214,6 +235,17 @@ export function NavigationRail({
         >
           <SlidersHorizontal className="h-4 w-4" />
         </button>
+
+        {authMode === "api-key" && (
+          <button
+            type="button"
+            onClick={onLogout}
+            className="rounded-xl p-2 text-[var(--ink-secondary)]"
+            title="Cerrar sesión"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
+        )}
       </nav>
     </>
   );

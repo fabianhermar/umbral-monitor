@@ -1,6 +1,15 @@
+/**
+ * ============================================================================
+ * Componente de Vista General — `DomainMonoliths`
+ * ============================================================================
+ * Muestra cada uno de tus dominios permitidos como un módulo instrumental con
+ * tira de 24 pulsos, métricas tabulares y conectores Cloudflare/Vercel.
+ */
+
 import { ArrowUpRight, Shield, ShieldAlert } from "lucide-react";
-import type { SiteOperationalStatus, SiteSummary } from "../types";
-import { InfoTip } from "./InfoTip";
+import type { SiteOperationalStatus, SiteSummary } from "../../types/dashboard.types";
+import { formatRelativeTime } from "../../utils/formatters";
+import { InfoTip } from "../ui/InfoTip";
 
 interface DomainMonolithsProps {
   sites: SiteSummary[];
@@ -12,40 +21,16 @@ const STATUS_META: Record<
   SiteOperationalStatus,
   { label: string; color: string; bg: string }
 > = {
-  up: {
-    label: "OPERATIVO",
-    color: "var(--signal-mint)",
-    bg: "var(--signal-mint-soft)",
-  },
-  degraded: {
-    label: "DEGRADADO",
-    color: "var(--signal-ochre)",
-    bg: "var(--signal-ochre-soft)",
-  },
-  down: {
-    label: "CAÍDO",
-    color: "var(--signal-crimson)",
-    bg: "var(--signal-crimson-soft)",
-  },
+  up: { label: "OPERATIVO", color: "var(--signal-mint)", bg: "var(--signal-mint-soft)" },
+  degraded: { label: "DEGRADADO", color: "var(--signal-ochre)", bg: "var(--signal-ochre-soft)" },
+  down: { label: "CAÍDO", color: "var(--signal-crimson)", bg: "var(--signal-crimson-soft)" },
   under_attack: {
     label: "BAJO ATAQUE",
     color: "var(--signal-vermilion)",
     bg: "var(--signal-vermilion-soft)",
   },
-  unknown: {
-    label: "SIN SEÑAL",
-    color: "var(--ink-muted)",
-    bg: "var(--bg-inset)",
-  },
+  unknown: { label: "SIN SEÑAL", color: "var(--ink-muted)", bg: "var(--bg-inset)" },
 };
-
-function relativeTime(iso: string | null): string {
-  if (!iso) return "sin chequeo";
-  const sec = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
-  if (sec < 60) return `hace ${sec}s`;
-  if (sec < 3600) return `hace ${Math.floor(sec / 60)}m`;
-  return `hace ${Math.floor(sec / 3600)}h`;
-}
 
 export function DomainMonoliths({
   sites,
@@ -82,7 +67,6 @@ export function DomainMonoliths({
               }`}
               style={{ animationDelay: `${index * 60}ms` }}
             >
-              {/* Top Rail */}
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
@@ -113,7 +97,7 @@ export function DomainMonoliths({
                   <a
                     href={site.checkUrl}
                     target="_blank"
-                    rel="noreferrer"
+                    rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
                     className="mt-0.5 inline-flex items-center gap-1 font-mono text-xs text-[var(--ink-secondary)] transition hover:text-[var(--signal-vermilion)]"
                   >
@@ -127,12 +111,12 @@ export function DomainMonoliths({
                     {site.uptime24h !== null ? `${site.uptime24h}%` : "—"}
                   </div>
                   <div className="font-mono text-[10px] text-[var(--ink-muted)]">
-                    {relativeTime(site.lastCheckedAt)}
+                    {formatRelativeTime(site.lastCheckedAt)}
                   </div>
                 </div>
               </div>
 
-              {/* 24-Interval Precision Signal Strip */}
+              {/* Tira de 24 pulsos */}
               <div className="mt-4">
                 <div className="umbral-inset rounded-xl p-2.5">
                   <div className="flex h-8 items-end gap-[3px]">
@@ -159,10 +143,7 @@ export function DomainMonoliths({
                         <div
                           key={i}
                           className="flex-1 rounded-[2px] transition-opacity hover:opacity-75"
-                          style={{
-                            height: `${heightPct}%`,
-                            backgroundColor: barColor,
-                          }}
+                          style={{ height: `${heightPct}%`, backgroundColor: barColor }}
                           title={`${new Date(point.checkedAt).toLocaleTimeString("es-MX")} · HTTP ${point.statusCode ?? "ERR"} · ${point.latencyMs} ms`}
                         />
                       );
@@ -179,7 +160,7 @@ export function DomainMonoliths({
                 </div>
               </div>
 
-              {/* 4-Cell Instrument Readout */}
+              {/* Lectura instrumental de 4 celdas */}
               <div className="mt-4 grid grid-cols-4 divide-x divide-[var(--border-subtle)] border-y border-[var(--border-subtle)] py-2.5">
                 <div className="pr-2">
                   <div className="font-mono text-[9.5px] text-[var(--ink-muted)] uppercase">
@@ -198,9 +179,7 @@ export function DomainMonoliths({
                     className="mt-0.5 font-mono text-xs font-semibold tabular-nums"
                     style={{
                       color:
-                        site.openIncidentsCount > 0
-                          ? "var(--signal-ochre)"
-                          : "var(--signal-mint)",
+                        site.openIncidentsCount > 0 ? "var(--signal-ochre)" : "var(--signal-mint)",
                     }}
                   >
                     {site.openIncidentsCount}
@@ -242,7 +221,7 @@ export function DomainMonoliths({
                 </div>
               </div>
 
-              {/* Hardware Connectors Footer */}
+              {/* Conectores de sincronización */}
               <div className="mt-3 flex flex-wrap items-center justify-between gap-2 font-mono text-[10px]">
                 <div className="flex items-center gap-3">
                   <span className="inline-flex items-center gap-1.5 text-[var(--ink-secondary)]">
@@ -274,9 +253,7 @@ export function DomainMonoliths({
                   <InfoTip glossaryKey="cf-vercel-sync" align="left" />
                 </div>
 
-                <span className="text-[var(--ink-muted)]">
-                  {site.allowedHosts.length} host(s)
-                </span>
+                <span className="text-[var(--ink-muted)]">{site.allowedHosts.length} host(s)</span>
               </div>
             </article>
           );

@@ -1,7 +1,17 @@
+/**
+ * ============================================================================
+ * Componente de Layout — `CommandHero`
+ * ============================================================================
+ * Encabezado editorial principal con titular dinámico según el estado del
+ * perímetro, cronógrafo tabular de 4 métricas, selector de alcance por dominio
+ * y botón de escaneo inmediato.
+ */
+
 import { BookOpen, Lock, Play, RefreshCw } from "lucide-react";
-import type { OverviewResponse, SiteOperationalStatus } from "../types";
-import { InfoTip } from "./InfoTip";
-import { UmbralLogo } from "./UmbralLogo";
+import type { OverviewResponse } from "../../types/dashboard.types";
+import { getSiteStatusDotColor } from "../../utils/formatters";
+import { UmbralLogo } from "../brand/UmbralLogo";
+import { InfoTip } from "../ui/InfoTip";
 
 interface CommandHeroProps {
   overview: OverviewResponse;
@@ -13,21 +23,6 @@ interface CommandHeroProps {
   isRefreshing: boolean;
   isRunningChecks: boolean;
   healthStatus: "healthy" | "warning" | "critical";
-}
-
-function statusDotColor(status: SiteOperationalStatus): string {
-  switch (status) {
-    case "up":
-      return "var(--signal-mint)";
-    case "degraded":
-      return "var(--signal-ochre)";
-    case "down":
-      return "var(--signal-crimson)";
-    case "under_attack":
-      return "var(--signal-vermilion)";
-    default:
-      return "var(--ink-muted)";
-  }
 }
 
 export function CommandHero({
@@ -45,30 +40,23 @@ export function CommandHero({
 
   const headline =
     healthStatus === "critical"
-      ? {
-          main: "Interrupción crítica",
-          editorial: "en tu perímetro.",
-        }
+      ? { main: "Interrupción crítica", editorial: "en tu perímetro." }
       : healthStatus === "warning"
-        ? {
-            main: "Señales activas",
-            editorial: "bajo observación.",
-          }
-        : {
-            main: "Todos los umbrales",
-            editorial: "en calma absoluta.",
-          };
+        ? { main: "Señales activas", editorial: "bajo observación." }
+        : { main: "Todos los umbrales", editorial: "en calma absoluta." };
 
   const authBadge =
-    auth.mode === "cloudflare-access"
-      ? `CF ACCESS · ${auth.user}`
-      : auth.mode === "api-key"
-        ? "API KEY PROTEGIDA"
-        : "ENTORNO LOCAL";
+    auth.mode === "demo"
+      ? "DEMO PÚBLICA · DATOS FICTICIOS"
+      : auth.mode === "cloudflare-access"
+        ? `CF ACCESS · ${auth.user}`
+        : auth.mode === "api-key"
+          ? "API KEY PROTEGIDA"
+          : "ENTORNO LOCAL";
 
   return (
     <header className="umbral-panel animate-fade-up rounded-2xl p-5 sm:p-7">
-      {/* Top Micro Telemetry Bar */}
+      {/* Barra superior de micro-telemetría */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border-subtle)] pb-4">
         <div className="flex items-center gap-3">
           <div className="lg:hidden">
@@ -104,7 +92,7 @@ export function CommandHero({
         </div>
       </div>
 
-      {/* Main Editorial + Chronograph Readout */}
+      {/* Titular editorial + Cronógrafo de 4 celdas */}
       <div className="mt-6 grid grid-cols-1 items-end gap-6 xl:grid-cols-12">
         <div className="xl:col-span-6">
           <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-inset)] px-3 py-1 text-[11px] font-medium text-[var(--ink-secondary)]">
@@ -134,7 +122,6 @@ export function CommandHero({
           </h1>
         </div>
 
-        {/* Precision Swiss Chronograph Telemetry Cluster */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:col-span-6">
           <div className="umbral-inset rounded-xl p-3.5">
             <div className="flex items-center justify-between gap-1 font-mono text-[10px] tracking-[0.14em] text-[var(--ink-muted)] uppercase">
@@ -215,7 +202,7 @@ export function CommandHero({
         </div>
       </div>
 
-      {/* Bottom Scope Pills & Tactile Action Triggers */}
+      {/* Selector de sitio + Acciones */}
       <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--border-subtle)] pt-4">
         <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Alcance por sitio">
           <button
@@ -245,7 +232,7 @@ export function CommandHero({
               >
                 <span
                   className="h-1.5 w-1.5 rounded-full"
-                  style={{ backgroundColor: statusDotColor(site.status) }}
+                  style={{ backgroundColor: getSiteStatusDotColor(site.status) }}
                 />
                 {site.domain}
               </button>

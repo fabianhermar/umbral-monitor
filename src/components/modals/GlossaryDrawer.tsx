@@ -1,10 +1,18 @@
+/**
+ * ============================================================================
+ * Panel Buscable — `GlossaryDrawer` (Manual de Referencia Completo)
+ * ============================================================================
+ * Explica los 26 conceptos, estados, siglas (`UP`, `HDR`, `DEF`, `P50`, `P95`),
+ * categorías, severidades, códigos `52x` y capas de seguridad de UMBRAL.
+ */
+
 import { BookOpen, Search, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import {
   GLOSSARY_ENTRIES,
   GLOSSARY_GROUPS,
   type GlossaryGroup,
-} from "../data/glossary";
+} from "../../constants/glossary";
 
 interface GlossaryDrawerProps {
   open: boolean;
@@ -33,13 +41,9 @@ export function GlossaryDrawer({ open, onClose }: GlossaryDrawerProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
-      <div
-        className="fixed inset-0 bg-black/55 backdrop-blur-xs"
-        onClick={onClose}
-      />
+      <div className="fixed inset-0 bg-black/55 backdrop-blur-xs" onClick={onClose} />
 
       <aside className="umbral-glass animate-slide-in relative z-10 flex h-full w-full max-w-xl flex-col border-l shadow-2xl">
-        {/* Header */}
         <div className="flex items-start justify-between gap-4 border-b border-[var(--border-subtle)] p-5">
           <div>
             <div className="flex items-center gap-2 font-mono text-[10px] tracking-[0.18em] text-[var(--signal-vermilion)] uppercase">
@@ -64,7 +68,6 @@ export function GlossaryDrawer({ open, onClose }: GlossaryDrawerProps) {
           </button>
         </div>
 
-        {/* Search + Group Pills */}
         <div className="space-y-3 border-b border-[var(--border-subtle)] p-4">
           <div className="relative">
             <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-[var(--ink-muted)]" />
@@ -98,7 +101,6 @@ export function GlossaryDrawer({ open, onClose }: GlossaryDrawerProps) {
           </div>
         </div>
 
-        {/* Entries List */}
         <div className="flex-1 space-y-3 overflow-y-auto p-4">
           {filtered.length === 0 ? (
             <div className="py-12 text-center text-xs text-[var(--ink-muted)]">
@@ -143,7 +145,6 @@ export function GlossaryDrawer({ open, onClose }: GlossaryDrawerProps) {
           )}
         </div>
 
-        {/* Footer */}
         <div className="flex items-center justify-between border-t border-[var(--border-subtle)] px-5 py-3 font-mono text-[10.5px] text-[var(--ink-muted)]">
           <span>{filtered.length} concepto(s) documentado(s)</span>
           <span>

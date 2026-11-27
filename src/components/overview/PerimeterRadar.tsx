@@ -1,5 +1,18 @@
-import type { IncidentCategory, IncidentItem, OverviewResponse } from "../types";
-import { InfoTip } from "./InfoTip";
+/**
+ * ============================================================================
+ * Componente de Vista General — `PerimeterRadar`
+ * ============================================================================
+ * Brújula concéntrica en SVG con 3 arcos ponderados (`UP`, `HDR`, `DEF`) y
+ * matriz proporcional de incidencias activas por categoría.
+ */
+
+import type {
+  IncidentCategory,
+  IncidentItem,
+  OverviewResponse,
+} from "../../types/dashboard.types";
+import { computeSvgArcDash } from "../../utils/math";
+import { InfoTip } from "../ui/InfoTip";
 
 interface PerimeterRadarProps {
   overview: OverviewResponse;
@@ -15,15 +28,6 @@ const CATEGORIES: Array<{ id: IncidentCategory; label: string; color: string }> 
   { id: "deployment", label: "Deploys", color: "var(--signal-mint)" },
 ];
 
-function arcStrokeDash(percent: number, radius: number) {
-  const circumference = 2 * Math.PI * radius;
-  const clamped = Math.max(0, Math.min(100, percent));
-  return {
-    circumference,
-    offset: circumference * (1 - clamped / 100),
-  };
-}
-
 export function PerimeterRadar({ overview, incidents }: PerimeterRadarProps) {
   const uptimeScore = overview.kpis.globalUptime24h ?? 100;
   const avgSecScore =
@@ -36,14 +40,15 @@ export function PerimeterRadar({ overview, incidents }: PerimeterRadarProps) {
   const activeIncidents = incidents.filter((i) => i.status !== "resolved");
   const stabilityPenalty = Math.min(
     65,
-    overview.kpis.criticalIncidents * 28 + Math.max(0, overview.kpis.openIncidents - overview.kpis.criticalIncidents) * 8
+    overview.kpis.criticalIncidents * 28 +
+      Math.max(0, overview.kpis.openIncidents - overview.kpis.criticalIncidents) * 8
   );
   const calmScore = Math.max(15, 100 - stabilityPenalty);
   const perimeterIndex = Math.round(uptimeScore * 0.45 + avgSecScore * 0.25 + calmScore * 0.3);
 
-  const outerArc = arcStrokeDash(uptimeScore, 78);
-  const midArc = arcStrokeDash(avgSecScore, 62);
-  const innerArc = arcStrokeDash(calmScore, 46);
+  const outerArc = computeSvgArcDash(uptimeScore, 78);
+  const midArc = computeSvgArcDash(avgSecScore, 62);
+  const innerArc = computeSvgArcDash(calmScore, 46);
 
   const countsByCategory = new Map<IncidentCategory, number>();
   for (const inc of activeIncidents) {
@@ -68,37 +73,13 @@ export function PerimeterRadar({ overview, incidents }: PerimeterRadarProps) {
         </span>
       </div>
 
-      {/* Concentric SVG Precision Radar */}
       <div className="my-4 flex items-center justify-center">
         <div className="relative h-48 w-48">
           <svg viewBox="0 0 184 184" className="h-full w-full -rotate-90">
-            {/* Background tracks */}
-            <circle
-              cx="92"
-              cy="92"
-              r="78"
-              fill="none"
-              stroke="var(--border-subtle)"
-              strokeWidth="6"
-            />
-            <circle
-              cx="92"
-              cy="92"
-              r="62"
-              fill="none"
-              stroke="var(--border-subtle)"
-              strokeWidth="6"
-            />
-            <circle
-              cx="92"
-              cy="92"
-              r="46"
-              fill="none"
-              stroke="var(--border-subtle)"
-              strokeWidth="6"
-            />
+            <circle cx="92" cy="92" r="78" fill="none" stroke="var(--border-subtle)" strokeWidth="6" />
+            <circle cx="92" cy="92" r="62" fill="none" stroke="var(--border-subtle)" strokeWidth="6" />
+            <circle cx="92" cy="92" r="46" fill="none" stroke="var(--border-subtle)" strokeWidth="6" />
 
-            {/* Outer: Uptime */}
             <circle
               cx="92"
               cy="92"
@@ -111,8 +92,6 @@ export function PerimeterRadar({ overview, incidents }: PerimeterRadarProps) {
               strokeDashoffset={outerArc.offset}
               className="transition-all duration-700"
             />
-
-            {/* Middle: Security Headers */}
             <circle
               cx="92"
               cy="92"
@@ -125,8 +104,6 @@ export function PerimeterRadar({ overview, incidents }: PerimeterRadarProps) {
               strokeDashoffset={midArc.offset}
               className="transition-all duration-700"
             />
-
-            {/* Inner: Calm / Defense Index */}
             <circle
               cx="92"
               cy="92"
@@ -152,7 +129,6 @@ export function PerimeterRadar({ overview, incidents }: PerimeterRadarProps) {
         </div>
       </div>
 
-      {/* Arc Legend */}
       <div className="mb-4 grid grid-cols-3 gap-2 border-y border-[var(--border-subtle)] py-2.5 text-center font-mono text-[10px]">
         <div>
           <div className="inline-flex items-center gap-1">
@@ -180,7 +156,6 @@ export function PerimeterRadar({ overview, incidents }: PerimeterRadarProps) {
         </div>
       </div>
 
-      {/* Active Threat Composition Micro-Bars */}
       <div className="space-y-2">
         <div className="flex items-center justify-between font-mono text-[10px] tracking-[0.14em] text-[var(--ink-muted)] uppercase">
           <span>Matriz de incidencias activas</span>

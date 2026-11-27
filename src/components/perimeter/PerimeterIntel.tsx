@@ -1,14 +1,22 @@
+/**
+ * ============================================================================
+ * Componente de Seguridad — `PerimeterIntel`
+ * ============================================================================
+ * Inteligencia de perímetro (24h): barras proporcionales de Top IPs mitigadas,
+ * acciones WAF/SDK, rutas atacadas y bitácora detallada de eventos en D1.
+ */
+
 import { Globe2, ShieldBan, Terminal } from "lucide-react";
 import { useState } from "react";
-import type { SecurityResponse, SiteSummary } from "../types";
-import { InfoTip } from "./InfoTip";
+import type { SecurityResponse, SiteSummary } from "../../types/dashboard.types";
+import { InfoTip } from "../ui/InfoTip";
 
 interface PerimeterIntelProps {
   security: SecurityResponse | null;
   sites: SiteSummary[];
 }
 
-function actionColor(action: string): { color: string; bg: string } {
+function getActionColors(action: string): { color: string; bg: string } {
   if (action === "block") {
     return { color: "var(--signal-crimson)", bg: "var(--signal-crimson-soft)" };
   }
@@ -40,9 +48,7 @@ export function PerimeterIntel({ security, sites }: PerimeterIntelProps) {
 
   return (
     <div className="animate-fade-up space-y-5">
-      {/* 3 Proportional Intelligence Panels */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        {/* Top IPs */}
         <section className="umbral-panel rounded-2xl p-5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 font-mono text-[10.5px] tracking-[0.16em] text-[var(--ink-muted)] uppercase">
@@ -86,7 +92,6 @@ export function PerimeterIntel({ security, sites }: PerimeterIntelProps) {
           )}
         </section>
 
-        {/* Actions */}
         <section className="umbral-panel rounded-2xl p-5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 font-mono text-[10.5px] tracking-[0.16em] text-[var(--ink-muted)] uppercase">
@@ -102,7 +107,7 @@ export function PerimeterIntel({ security, sites }: PerimeterIntelProps) {
           ) : (
             <div className="mt-4 space-y-3">
               {security.actionsBreakdown.map((item) => {
-                const st = actionColor(item.action);
+                const st = getActionColors(item.action);
                 return (
                   <div key={item.action} className="space-y-1">
                     <div className="flex items-center justify-between font-mono text-xs">
@@ -130,7 +135,6 @@ export function PerimeterIntel({ security, sites }: PerimeterIntelProps) {
           )}
         </section>
 
-        {/* Attacked Paths */}
         <section className="umbral-panel rounded-2xl p-5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 font-mono text-[10.5px] tracking-[0.16em] text-[var(--ink-muted)] uppercase">
@@ -168,7 +172,6 @@ export function PerimeterIntel({ security, sites }: PerimeterIntelProps) {
         </section>
       </div>
 
-      {/* Detailed Event Stream */}
       <section className="umbral-panel overflow-hidden rounded-2xl">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border-subtle)] p-5">
           <div>
@@ -228,7 +231,7 @@ export function PerimeterIntel({ security, sites }: PerimeterIntelProps) {
               </thead>
               <tbody className="divide-y divide-[var(--border-subtle)]">
                 {filteredEvents.map((ev) => {
-                  const st = actionColor(ev.action);
+                  const st = getActionColors(ev.action);
                   return (
                     <tr key={ev.id} className="transition hover:bg-[var(--bg-surface-hover)]">
                       <td className="whitespace-nowrap px-5 py-3 text-[var(--ink-muted)]">

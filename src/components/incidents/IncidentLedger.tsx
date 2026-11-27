@@ -1,3 +1,11 @@
+/**
+ * ============================================================================
+ * Componente de Incidencias — `IncidentLedger`
+ * ============================================================================
+ * Lista filtrable de todas las incidencias (caídas, ataques, bloqueos,
+ * seguridad, errores internos y deploys). Al hacer clic abre `IncidentDrawer`.
+ */
+
 import {
   AlertOctagon,
   Ban,
@@ -11,22 +19,19 @@ import {
 } from "lucide-react";
 import type {
   IncidentCategory,
+  IncidentFilters,
   IncidentItem,
   IncidentSeverity,
   IncidentStatus,
   SiteSummary,
-} from "../types";
-import { InfoTip } from "./InfoTip";
+} from "../../types/dashboard.types";
+import { InfoTip } from "../ui/InfoTip";
 
 interface IncidentLedgerProps {
   incidents: IncidentItem[];
   sites: SiteSummary[];
-  filters: {
-    status: string;
-    category: string;
-    severity: string;
-  };
-  onFilterChange: (patch: Partial<{ status: string; category: string; severity: string }>) => void;
+  filters: IncidentFilters;
+  onFilterChange: (patch: Partial<IncidentFilters>) => void;
   onSelectIncident: (incident: IncidentItem) => void;
 }
 
@@ -74,7 +79,6 @@ export function IncidentLedger({
 
   return (
     <section className="umbral-panel animate-fade-up overflow-hidden rounded-2xl">
-      {/* Header & Filter Pills */}
       <div className="flex flex-col gap-4 border-b border-[var(--border-subtle)] p-5">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
@@ -118,7 +122,6 @@ export function IncidentLedger({
           </div>
         </div>
 
-        {/* Status Segmented Bar */}
         <div className="flex flex-wrap items-center gap-1.5">
           {statusTabs.map((t) => {
             const active = filters.status === t.id;
@@ -140,7 +143,6 @@ export function IncidentLedger({
         </div>
       </div>
 
-      {/* Incident Stream */}
       {incidents.length === 0 ? (
         <div className="flex flex-col items-center justify-center px-6 py-14 text-center">
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--signal-mint-soft)] text-[var(--signal-mint)]">
@@ -173,13 +175,11 @@ export function IncidentLedger({
                 onClick={() => onSelectIncident(inc)}
                 className="group relative flex w-full items-center gap-4 px-5 py-4 text-left transition hover:bg-[var(--bg-surface-hover)]"
               >
-                {/* Left Severity Spine */}
                 <span
                   className="absolute inset-y-2.5 left-0 w-[3px] rounded-r-full"
                   style={{ backgroundColor: sev.color }}
                 />
 
-                {/* Category Emblem */}
                 <div
                   className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-inset)] sm:flex"
                   style={{ color: cat.color }}
@@ -187,7 +187,6 @@ export function IncidentLedger({
                   <CatIcon className="h-[18px] w-[18px]" />
                 </div>
 
-                {/* Main Content */}
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2 font-mono text-[10px]">
                     <span className="font-semibold tracking-wider" style={{ color: cat.color }}>
@@ -217,7 +216,6 @@ export function IncidentLedger({
                   </p>
                 </div>
 
-                {/* Right Status + Timestamp */}
                 <div className="hidden shrink-0 text-right sm:block">
                   <div className="inline-flex items-center gap-1.5 font-mono text-[11px] font-medium">
                     <span
