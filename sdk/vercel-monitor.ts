@@ -1,14 +1,14 @@
 /**
  * ============================================================================
- * SDK Ligero de Telemetría para tus proyectos alojados en Vercel (Free / Pro)
+ * UMBRAL — SDK Ligero de Telemetría para tus proyectos en Vercel (Free / Pro)
  * ============================================================================
- * Copia este archivo dentro de tus proyectos en Vercel (ej. `lib/vercel-monitor.ts`).
- * No tiene dependencias externas y usa Web Crypto API (compatible con Vercel Edge y Node 18+).
+ * Copia este archivo dentro de tus proyectos en Vercel (ej. `src/lib/vercel-monitor.ts`).
+ * Cero dependencias externas; usa Web Crypto API (compatible con Edge y Node 18+).
  *
  * Variables de entorno necesarias en cada proyecto de Vercel:
- *   MONITOR_INGEST_URL = https://tu-dashboard.tudominio.com/api/ingest
- *   MONITOR_SITE_ID    = mi-web-principal        (debe existir en config/sites.config.ts)
- *   MONITOR_SITE_SECRET= <secreto_exclusivo_de_este_sitio>
+ *   MONITOR_INGEST_URL  = https://umbral.tudominio.com/api/ingest
+ *   MONITOR_SITE_ID     = mi-web-principal        (debe existir en config/sites.config.ts o SITES_CONFIG_JSON)
+ *   MONITOR_SITE_SECRET = <secreto_exclusivo_de_este_sitio>
  */
 
 export type MonitorCategory =
@@ -54,9 +54,28 @@ async function signPayload(secret: string, timestamp: string, rawBody: string): 
 }
 
 function readEnv(name: string): string | undefined {
-  // Compatible con Node.js y entornos Edge de Vercel
   const p = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process;
   return p?.env?.[name];
+}
+
+/** Parsea `req.url` de forma segura aunque sea una ruta relativa (`/api/...`) */
+function safeParseRequestUrl(req?: Request): { hostname?: string; pathname: string } {
+  if (!req?.url) return { pathname: "/" };
+  try {
+    const parsed = new URL(req.url);
+    return { hostname: parsed.hostname, pathname: parsed.pathname };
+  } catch {
+    try {
+      const fallbackHost = req.headers?.get("host") ?? "localhost";
+      const parsed = new URL(req.url, `https://${fallbackHost}`);
+      return {
+        hostname: req.headers?.get("host") ? parsed.hostname : undefined,
+        pathname: parsed.pathname,
+      };
+    } catch {
+      return { pathname: "/" };
+    }
+  }
 }
 
 export async function reportIncident(options: ReportIncidentOptions): Promise<boolean> {
@@ -68,11 +87,19 @@ export async function reportIncident(options: ReportIncidentOptions): Promise<bo
     return false;
   }
 
-  const timestamp = String(Math.floor(Date.now() / 1000));
-  const rawBody = JSON.stringify(options);
-  const signature = await signPayload(secret, timestamp, rawBody);
-
   try {
+    const timestamp = String(Math.floor(Date.now() / 1000));
+    // Incluir nonce único evita falsos positivos de replay si ocurren 2 eventos idénticos el mismo segundo
+    const payloadWithNonce = {
+      ...options,
+      metadata: {
+        ...(options.metadata ?? {}),
+        _nonce: crypto.randomUUID().slice(0, 12),
+      },
+    };
+    const rawBody = JSON.stringify(payloadWithNonce);
+    const signature = await signPayload(secret, timestamp, rawBody);
+
     const res = await fetch(ingestUrl, {
       method: "POST",
       headers: {
@@ -91,7 +118,7 @@ export async function reportIncident(options: ReportIncidentOptions): Promise<bo
 }
 
 /**
- * Helper para reportar errores 500 o excepciones no controladas en API Routes / Route Handlers.
+ * Reporta errores 500 o excepciones no controladas en API Routes / Route Handlers.
  */
 export async function reportAppError(
   error: unknown,
@@ -99,16 +126,16 @@ export async function reportAppError(
   extra?: Record<string, unknown>
 ): Promise<boolean> {
   const errMsg = error instanceof Error ? error.message : String(error);
-  const url = req ? new URL(req.url) : null;
+  const { hostname, pathname } = safeParseRequestUrl(req);
 
   return reportIncident({
     category: "error",
     severity: "high",
-    title: `Error interno en ${url?.pathname ?? "servidor"}`,
+    title: `Error interno en ${pathname}`,
     description: errMsg.slice(0, 500),
-    fingerprint: `app-500:${url?.pathname ?? "unknown"}:${errMsg.slice(0, 40)}`,
-    host: url?.hostname,
-    path: url?.pathname,
+    fingerprint: `app-500:${pathname}:${errMsg.slice(0, 40)}`,
+    host: hostname,
+    path: pathname,
     method: req?.method,
     clientIp:
       req?.headers.get("cf-connecting-ip") ??
@@ -124,7 +151,7 @@ export async function reportAppError(
 }
 
 /**
- * Helper para reportar bloqueos o actividad sospechosa (ej. fuerza bruta en login, rate limit, payload malicioso).
+ * Reporta bloqueos o actividad sospechosa (fuerza bruta en login, rate limit, payload malicioso).
  */
 export async function reportSecurityBlock(
   req: Request,
@@ -132,7 +159,7 @@ export async function reportSecurityBlock(
   severity: MonitorSeverity = "high",
   extra?: Record<string, unknown>
 ): Promise<boolean> {
-  const url = new URL(req.url);
+  const { hostname, pathname } = safeParseRequestUrl(req);
   const clientIp =
     req.headers.get("cf-connecting-ip") ??
     req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
@@ -141,11 +168,11 @@ export async function reportSecurityBlock(
   return reportIncident({
     category: "block",
     severity,
-    title: `Bloqueo de seguridad en ${url.pathname}`,
+    title: `Bloqueo de seguridad en ${pathname}`,
     description: reason,
-    fingerprint: `app-block:${url.pathname}:${clientIp}`,
-    host: url.hostname,
-    path: url.pathname,
+    fingerprint: `app-block:${pathname}:${clientIp}`,
+    host: hostname,
+    path: pathname,
     method: req.method,
     clientIp,
     country: req.headers.get("cf-ipcountry") ?? undefined,
