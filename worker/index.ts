@@ -1,41 +1,81 @@
+/**
+ * ============================================================================
+ * Punto de Entrada del Cloudflare Worker (`UMBRAL`)
+ * ============================================================================
+ * Soporta dos modos completamente aislados:
+ *  - Producción privada (`DEMO_MODE` desactivado): D1 real, lista blanca real,
+ *    crons automáticos cada 1 y 5 min y autenticación estricta.
+ *  - Demo pública (`DEMO_MODE=true` vía `wrangler.demo.jsonc`): datos ficticios,
+ *    cero secretos reales, sin conexión a D1 y analizador anti-SSRF en vivo.
+ */
+
 import { Hono } from "hono";
-import { syncCloudflareSecurity } from "./collectors/cloudflare";
-import { runUptimeChecks } from "./collectors/uptime";
-import { syncVercelDeployments } from "./collectors/vercel";
-import { securityHeadersMiddleware } from "./lib/auth";
-import { pruneOldRecords } from "./lib/db";
-import { dashboardRoutes } from "./routes/dashboard";
-import { ingestRoutes } from "./routes/ingest";
+import { syncCloudflareSecurity } from "./collectors/cloudflare.collector";
+import { runUptimeChecks } from "./collectors/uptime.collector";
+import { syncVercelDeployments } from "./collectors/vercel.collector";
+import { securityHeadersMiddleware } from "./middlewares/security-headers";
+import { dashboardRoutes } from "./routes/dashboard.routes";
+import { demoRoutes } from "./routes/demo.routes";
+import { healthRoutes } from "./routes/health.routes";
+import { ingestRoutes } from "./routes/ingest.routes";
+import { pruneOldRecords } from "./services/incidents.service";
 import type { Env } from "./types";
 
 const app = new Hono<{ Bindings: Env }>();
 
 app.use("*", securityHeadersMiddleware);
 
-app.get("/api/health", (c) =>
-  c.json({
-    ok: true,
-    service: "umbral-perimeter-os",
-    timestamp: new Date().toISOString(),
-  })
-);
+app.route("/api/health", healthRoutes);
 
-app.route("/api/ingest", ingestRoutes);
-app.route("/api/dashboard", dashboardRoutes);
+app.all("/api/ingest/*", async (c) => {
+  if (c.env.DEMO_MODE === "true") {
+    return c.json({ error: "Ingesta desactivada en Modo Demo público." }, 403);
+  }
+  const url = new URL(c.req.url);
+  url.pathname = url.pathname.replace(/^\/api\/ingest/, "") || "/";
+  return ingestRoutes.fetch(new Request(url.toString(), c.req.raw), c.env, c.executionCtx);
+});
+
+app.all("/api/ingest", async (c) => {
+  if (c.env.DEMO_MODE === "true") {
+    return c.json({ error: "Ingesta desactivada en Modo Demo público." }, 403);
+  }
+  const url = new URL(c.req.url);
+  url.pathname = "/";
+  return ingestRoutes.fetch(new Request(url.toString(), c.req.raw), c.env, c.executionCtx);
+});
+
+app.all("/api/dashboard/*", async (c) => {
+  const url = new URL(c.req.url);
+  url.pathname = url.pathname.replace(/^\/api\/dashboard/, "") || "/";
+  const req = new Request(url.toString(), c.req.raw);
+
+  if (c.env.DEMO_MODE === "true") {
+    return demoRoutes.fetch(req, c.env, c.executionCtx);
+  }
+  return dashboardRoutes.fetch(req, c.env, c.executionCtx);
+});
 
 app.all("/api/*", (c) => c.json({ error: "Endpoint no encontrado." }, 404));
+
+app.onError((err, c) => {
+  console.error("[UMBRAL Worker Error]:", err instanceof Error ? err.message : "Unknown error");
+  return c.json({ error: "Error interno procesando la solicitud." }, 500);
+});
 
 app.all("*", async (c) => {
   if (c.env.ASSETS) {
     return c.env.ASSETS.fetch(c.req.raw);
   }
-  return c.text("Dashboard UI no compilada. Ejecuta `pnpm build`.", 404);
+  return c.text("Interfaz no compilada. Ejecuta `pnpm build`.", 404);
 });
 
 export default {
   fetch: app.fetch,
 
   async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext) {
+    if (env.DEMO_MODE === "true") return;
+
     if (controller.cron === "*/5 * * * *") {
       ctx.waitUntil(
         Promise.allSettled([
@@ -47,7 +87,6 @@ export default {
       return;
     }
 
-    // Cron de cada minuto (* * * * *)
     ctx.waitUntil(runUptimeChecks(env));
   },
 };
