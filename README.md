@@ -104,12 +104,14 @@ flowchart LR
 
 ```text
 .
+├── ARCHITECTURE.md              # Guía clara para desarrolladores Junior, Mid y Senior
 ├── config/
-│   └── sites.config.ts          # Lista blanca estricta de tus dominios
+│   └── sites.config.ts          # Lista blanca estricta de tus dominios propios
 ├── migrations/
 │   └── 0001_initial.sql         # Esquema SQLite para Cloudflare D1
 ├── public/
-│   ├── logo.svg                 # Logotipo completo vectorial
+│   ├── _headers                 # Cabeceras CSP, HSTS y XFO para activos estáticos
+│   ├── logo.svg                 # Logotipo vectorial completo
 │   ├── logo-mark.svg            # Isotipo / Favicon SVG
 │   ├── logo.png                 # Logotipo horizontal PNG (1120x256)
 │   └── logo-mark.png            # Avatar PNG (512x512) para Discord/Telegram
@@ -117,15 +119,24 @@ flowchart LR
 │   └── vercel-monitor.ts        # Helper sin dependencias para tus apps en Vercel
 ├── scripts/
 │   └── seed_local.sql           # Datos demo opcionales (solo local)
-├── src/                         # Frontend React 19 + Vite + Tailwind v4 + Recharts
-│   ├── components/
-│   └── data/glossary.ts
-├── worker/                      # Cloudflare Worker (Hono + Cron Triggers)
-│   ├── collectors/              # uptime.ts, cloudflare.ts, vercel.ts
-│   ├── lib/                     # allowlist.ts, auth.ts, crypto.ts, db.ts, alerts.ts
-│   └── routes/                  # dashboard.ts, ingest.ts
-├── wrangler.jsonc               # Configuración de Worker, D1, Assets y Crons
-└── .dev.vars.example            # Plantilla de variables locales
+├── src/                         # Frontend React 19 + Vite + Tailwind v4
+│   ├── styles/                  # Tokens de diseño dual (Obsidiana / Alabastro)
+│   ├── types/                   # Contratos TypeScript del cliente
+│   ├── constants/               # Claves de sesión y diccionario del glosario
+│   ├── services/                # Cliente HTTP tipado (api.client.ts)
+│   ├── utils/                   # Formateadores y matemáticas (percentiles / arcos SVG)
+│   ├── hooks/                   # useTheme, useKeyboardShortcuts, useDashboardData
+│   └── components/              # Agrupados por dominio (brand, ui, layout, overview, incidents, perimeter, telemetry, modals)
+└── worker/                      # Backend Cloudflare Worker (Hono + D1 + Cron)
+    ├── types/                   # Definiciones Env y modelos D1
+    ├── constants/               # Límites de seguridad, CSP y enums válidos
+    ├── security/                # Allowlist, HMAC tiempo constante, JWT CF Access y Anti-Replay
+    ├── middlewares/             # Cabeceras HTTP, Auth y Rate-Limiting
+    ├── validators/              # Sanitización y protección contra Prototype Pollution
+    ├── repositories/            # Consultas SQL parametrizadas puras hacia D1
+    ├── services/                # Lógica de negocio (deduplicación, alertas, KPIs)
+    ├── collectors/              # Sondas automáticas (uptime 1m, Cloudflare 5m, Vercel 5m)
+    └── routes/                  # Controladores HTTP delgados (health, ingest, dashboard)
 ```
 
 ---
@@ -157,7 +168,8 @@ pnpm dev:worker
 ## Despliegue en producción (Cloudflare Free)
 
 ### 1. Registrar tus dominios
-Edita [config/sites.config.ts](config/sites.config.ts) con tus dominios, su `cloudflareZoneId` (*Cloudflare → tu dominio → Overview → Zone ID*) y opcionalmente su `vercelProjectId` (*Vercel → Project Settings → General*).
+* **Si tu repo en GitHub es público (recomendado):** mantén tus dominios reales fuera del código usando el secreto **`SITES_CONFIG_JSON`** (`pnpx wrangler secret put SITES_CONFIG_JSON` en Cloudflare y en tu `.dev.vars` local).
+* **Si tu repo es privado:** puedes editar directamente [config/sites.config.ts](config/sites.config.ts) con tus dominios, `cloudflareZoneId` y `vercelProjectId`.
 
 ### 2. Crear D1 y aplicar migraciones
 ```bash
@@ -185,13 +197,24 @@ pnpx wrangler secret put DISCORD_WEBHOOK_URL
 * **Permisos del `CLOUDFLARE_API_TOKEN` (solo lectura):** `Zone → Analytics: Read` y `Zone → Firewall Services: Read` sobre tus zonas.
 * **Generar `SITE_SECRETS_JSON` seguro:**
   ```bash
-  node -e "const c=require('crypto'); const ids=['boxode','carniceriasnmiguel','ccut','duneui','fabianh']; console.log(JSON.stringify(Object.fromEntries(ids.map(id=>[id,c.randomBytes(24).toString('hex')]))));"
+  node -e "const c=require('crypto'); const ids=['mi-web-principal','mi-app']; console.log(JSON.stringify(Object.fromEntries(ids.map(id=>[id,c.randomBytes(24).toString('hex')]))));"
   ```
 
 ### 4. Desplegar
 ```bash
 pnpm deploy
 ```
+
+### Desplegar versión Demo Pública (`umbral-demo`)
+Si deseas publicar una demostración interactiva sin exponer tus dominios reales, tu base D1 ni ningún secreto:
+```bash
+# Probar la demo en local
+pnpm dev:demo
+
+# Desplegar como Worker independiente `umbral-demo` (DEMO_MODE=true, 0 secretos, 0 D1 real)
+pnpm deploy:demo
+```
+Incluye 4 dominios ficticios (`.demo`), simulador de ataques WAF / caídas `522` y un analizador de páginas públicas en vivo protegido contra SSRF (máx. 5 pruebas/min/IP).
 
 ### 5. Subdominio propio + Cloudflare Access (Recomendado)
 1. En **Cloudflare → Workers & Pages → `umbral-perimeter-os` → Settings → Domains & Routes**, añade un **Custom Domain** (ej. `umbral.tudominio.com`) y desactiva `*.workers.dev`.
